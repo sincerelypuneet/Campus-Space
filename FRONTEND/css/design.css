@@ -1,0 +1,93 @@
+/* design.css – shared design tokens and base typography */
+
+:root {
+    /* Color palette */
+    --color-primary: #2c3e50;          /* Dark blue/gray – main brand */
+    --color-primary-dark: #1a252f;     /* Darker for hover/focus */
+    --color-secondary: #3498db;        /* Accent blue */
+    --color-secondary-dark: #2980b9;   /* Accent hover */
+    --color-success: #27ae60;          /* Success messages */
+    --color-warning: #f39c12;          /* Warning / info */
+    --color-danger: #e74c3c;           /* Errors */
+    --color-background: #f5f7fa;       /* Light page background */
+    --color-surface: #ffffff;          /* Cards, modals, sidebars */
+    --color-text: #2d3436;             /* Primary text */
+    --color-muted: #7f8c8d;            /* Secondary/disabled text */
+
+    /* Typography */
+    --font-family-sans: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 600;
+    --font-size-base: 1rem;            /* 16px */
+    --font-size-sm: 0.875rem;          /* 14px */
+    --font-size-md: 1rem;              /* 16px */
+    --font-size-lg: 1.25rem;           /* 20px */
+    --font-size-xl: 2rem;              /* 32px */
+    --font-size-xxl: 2.5rem;           /* 40px */
+
+    /* Spacing */
+    --space-xxs: 0.25rem;   /* 4px */
+    --space-xs: 0.5rem;    /* 8px */
+    --space-sm: 0.75rem;   /* 12px */
+    --space-md: 1rem;      /* 16px */
+    --space-lg: 1.5rem;    /* 24px */
+    --space-xl: 2rem;      /* 32px */
+    --space-xxl: 3rem;     /* 48px */
+
+    /* Radii & shadows */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+    --shadow-md: 0 4px 8px rgba(0,0,0,0.15);
+    --shadow-lg: 0 6px 12px rgba(0,0,0,0.2);
+}
+
+/* Global resets & base */
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-regular);
+    color: var(--color-text);
+    background: var(--color-background);
+    line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin: 0 0 var(--space-sm) 0;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+}
+
+h1 {font-size: var(--font-size-xxl);}   /* 40px */
+h2 {font-size: var(--font-size-xl);}    /* 32px */
+h3 {font-size: var(--font-size-lg);}    /* 20px */
+h4 {font-size: var(--font-size-md);}    /* 16px */
+
+p {margin: 0 0 var(--space-sm) 0;}
+
+a {color: var(--color-secondary); text-decoration: none;}
+a:hover {text-decoration: underline;}
+
+button, .btn {
+    font-family: inherit;
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--space-xs) var(--space-sm);
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Utility classes */
+.mt-sm {margin-top: var(--space-sm);}
+.mb-sm {margin-bottom: var(--space-sm);}
+.p-sm {padding: var(--space-sm);}
+.d-flex {display: flex;}
+.align-center {align-items: center;}
+.justify-center {justify-content: center;}
+.flex-grow-1 {flex-grow: 1;}
+

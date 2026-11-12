@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusSpace - Teacher Timetable Management</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/admin-timetable.js" defer></script>
+</head>
+<body data-role="admin">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace Admin – Timetable Management</h1>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar">
+        <nav aria-label="Admin navigation">
+            <ul>
+                <li><a href="admin-dashboard.html">Home</a></li>
+                <li><a href="admin-teachers.html">Teacher Management</a></li>
+                <li><a class="active" href="admin-timetable.html">Timetable Management</a></li>
+                <li><a href="admin-classrooms.html">Classroom Management</a></li>
+            </ul>
+        </nav>
+    </aside>
+    <main class="main-content" id="admin-root">
+        <section class="card">
+            <h2 class="card-title">Teacher Schedules</h2>
+            <div class="timetable-toolbar">
+                <label for="search-teacher">Search teacher</label>
+                <input type="search" id="search-teacher" placeholder="Name, teacher ID, or employee ID" class="input-field"/>
+                <label for="filter-dept">Department</label>
+                <select id="filter-dept" class="input-field">
+                    <option value="">All Departments</option>
+                </select>
+                <label for="daily-day">Day</label>
+                <select id="daily-day" class="input-field">
+                    <option>Monday</option>
+                    <option>Tuesday</option>
+                    <option>Wednesday</option>
+                    <option>Thursday</option>
+                    <option>Friday</option>
+                    <option>Saturday</option>
+                    <option>Sunday</option>
+                </select>
+                <button class="btn-primary" type="button" id="add-schedule-btn">Add Schedule</button>
+            </div>
+            <div class="timetable-views" role="group" aria-label="Timetable view">
+                <button class="btn-secondary" type="button" id="view-weekly-btn" aria-pressed="true">Weekly View</button>
+                <button class="btn-secondary" type="button" id="view-daily-btn" aria-pressed="false">Daily View</button>
+                <button class="btn-secondary" type="button" id="free-periods-btn" aria-pressed="false">Free Periods</button>
+            </div>
+            <p class="form-message" id="timetable-message" role="status" aria-live="polite"></p>
+            <div id="timetable-root" aria-live="polite"></div>
+        </section>
+    </main>
+
+    <dialog class="schedule-dialog" id="schedule-dialog" aria-labelledby="schedule-dialog-title">
+        <form id="schedule-form">
+            <h2 id="schedule-dialog-title">Add Schedule</h2>
+            <label for="schedule-teacher">Teacher</label>
+            <select id="schedule-teacher" name="teacher_id" class="input-field" required></select>
+            <label for="schedule-subject">Subject</label>
+            <input id="schedule-subject" name="subject" class="input-field" type="text" required maxlength="120"/>
+            <label for="schedule-class">Class or section</label>
+            <input id="schedule-class" name="class_section" class="input-field" type="text" required maxlength="80"/>
+            <label for="schedule-department">Department</label>
+            <input id="schedule-department" name="department" class="input-field" type="text" required maxlength="100"/>
+            <label for="schedule-day">Day of the week</label>
+            <select id="schedule-day" name="day" class="input-field" required>
+                <option>Monday</option>
+                <option>Tuesday</option>
+                <option>Wednesday</option>
+                <option>Thursday</option>
+                <option>Friday</option>
+                <option>Saturday</option>
+                <option>Sunday</option>
+            </select>
+            <div class="schedule-time-fields">
+                <div>
+                    <label for="schedule-start">Start time</label>
+                    <input id="schedule-start" name="start" class="input-field" type="time" required/>
+                </div>
+                <div>
+                    <label for="schedule-end">End time</label>
+                    <input id="schedule-end" name="end" class="input-field" type="time" required/>
+                </div>
+            </div>
+            <label for="schedule-building">Building</label>
+            <input id="schedule-building" name="building" class="input-field" type="text" required maxlength="80"/>
+            <label for="schedule-floor">Floor</label>
+            <input id="schedule-floor" name="floor" class="input-field" type="number" min="0" step="1" required/>
+            <label for="schedule-room">Room number</label>
+            <input id="schedule-room" name="room_number" class="input-field" type="text" required maxlength="40"/>
+            <p class="form-message" id="schedule-error" role="alert"></p>
+            <div class="schedule-dialog-actions">
+                <button class="btn-secondary" type="button" id="cancel-schedule-btn">Cancel</button>
+                <button class="btn-primary" type="submit">Save Schedule</button>
+            </div>
+        </form>
+    </dialog>
+</body>
+</html>

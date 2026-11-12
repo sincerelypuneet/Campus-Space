@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CampusSpace – Student Dashboard</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/student.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="student">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace – Student</h1>
+        <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content" id="student-root">
+        <section class="card">
+            <h2 class="card-title">Welcome, Student</h2>
+            <p>Use the navigation menu to explore teachers, classrooms, and your bookings.</p>
+            <button class="btn-primary" id="load-teachers-btn">Load Teachers</button>
+            <div id="content-area" style="margin-top:1rem;"></div>
+        </section>
+    </main>
+</body>
+</html>
+

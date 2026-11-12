@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CampusSpace - Teacher Management</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/admin.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="admin">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace Admin – Teacher Management</h1>
+        <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar">
+        <nav>
+            <ul>
+                <li><a href="admin-dashboard.html">Home</a></li>
+                <li><a href="admin-teachers.html">Teacher Management</a></li>
+                <li><a href="admin-timetable.html">Timetable Management</a></li>
+                <li><a href="admin-classrooms.html">Classroom Management</a></li>
+            </ul>
+        </nav>
+    </aside>
+    <main class="main-content" id="admin-root">
+        <section class="card">
+            <h2 class="card-title">Teacher Management</h2>
+            <button class="btn-primary" id="add-teacher-btn">Add Teacher</button>
+            <div id="form-container" style="margin-top:1rem;"></div>
+        </section>
+    </main>
+</body>
+</html>

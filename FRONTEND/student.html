@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CampusSpace - Student</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/student.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="student">
+    <header class="app-header">
+        <img src="file:///C:/Users/PUNEET/.gemini/antigravity/brain/d1e83655-6b70-4844-9ddb-c91861b675c8/.user_uploaded/media_1794406068406_6141bc6c.png" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace Student</h1>
+        <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+        <!-- Auth button removed – direct access -->
+        <script>
+            // Bypass any sign‑in – go straight to student dashboard (placeholder)
+            window.location.href = 'student-dashboard.html';
+        </script>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content" id="student-root">
+        <!-- Student UI will be injected by student.js -->
+        <p>Loading student interface...</p>
+    </main>
+</body>
+</html>
+

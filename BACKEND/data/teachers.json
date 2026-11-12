@@ -1,0 +1,18 @@
+[
+  {
+    "id": "t-001",
+    "name": "Dr. Alice Smith",
+    "employee_id": "E1001",
+    "department": "Computer Science",
+    "designation": "Professor",
+    "subjects": ["Operating Systems", "Algorithms"]
+  },
+  {
+    "id": "t-002",
+    "name": "Prof. Bob Johnson",
+    "employee_id": "E1002",
+    "department": "Mathematics",
+    "designation": "Associate Professor",
+    "subjects": ["Calculus", "Linear Algebra"]
+  }
+]

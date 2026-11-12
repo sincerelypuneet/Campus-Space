@@ -1,0 +1,347 @@
+/* Shared component styles – buttons, forms, cards, tables, header, sidebar, modal, toast */
+
+/* Button variants */
+.btn-primary {
+    background: var(--color-primary);
+    color: #fff;
+}
+.btn-primary:hover {
+    background: var(--color-primary-dark);
+}
+
+.btn-secondary {
+    background: var(--color-secondary);
+    color: #fff;
+}
+.btn-secondary:hover {
+    background: var(--color-secondary-dark);
+}
+
+/* Disabled state */
+.btn:disabled, .btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Form styles */
+.input-field {
+    width: 100%;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-muted);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-md);
+    margin-bottom: var(--space-sm);
+    transition: border-color 0.2s;
+}
+.input-field:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(44,62,80,0.1);
+}
+
+label {
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-xxs);
+    display: block;
+}
+
+/* Card component */
+.card {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+.card-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-sm);
+    color: var(--color-primary);
+}
+
+/* Table component */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--space-md);
+}
+.table th,
+.table td {
+    padding: var(--space-sm);
+    text-align: left;
+    border-bottom: 1px solid var(--color-muted);
+}
+.table th {
+    background: var(--color-primary);
+    color: #fff;
+    font-weight: var(--font-weight-medium);
+}
+.table tr:hover {
+    background: rgba(0,0,0,0.03);
+}
+
+/* Header */
+.app-header {
+    background: var(--color-primary);
+    color: #fff;
+    padding: var(--space-sm) var(--space-md);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.app-header .logo {
+    height: 40px;
+}
+.app-header .title {
+    font-size: var(--font-size-lg);
+    margin-left: var(--space-sm);
+}
+.app-header .toggle-btn {
+    display: none; /* shown on mobile via media query */
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 250px;
+    background: var(--color-surface);
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow-y: auto;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.3s ease;
+    padding-top: var(--space-lg);
+}
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.sidebar li {
+    margin: 0;
+}
+.sidebar a {
+    display: block;
+    padding: var(--space-sm) var(--space-md);
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: var(--font-weight-medium);
+}
+.sidebar a:hover, .sidebar a.active {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+/* Main content area */
+.main-content {
+    margin-left: 250px;
+    padding: var(--space-md);
+    transition: margin-left 0.3s ease;
+}
+.main-content.full {
+    margin-left: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        height: 100%;
+        z-index: 1000;
+    }
+    .sidebar.collapsed {
+        transform: translateX(-100%);
+    }
+    .app-header .toggle-btn {
+        display: block;
+    }
+    .main-content {
+        margin-left: 0;
+        padding-top: var(--space-lg);
+    }
+}
+
+/* Modal dialog */
+.modal {
+    display: none; /* shown via JS */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+.modal.active {
+    display: flex;
+}
+.modal-content {
+    background: var(--color-surface);
+    padding: var(--space-lg);
+    border-radius: var(--radius-md);
+    max-width: 500px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+}
+.modal-close {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-muted);
+}
+
+/* Toast / notification */
+.toast {
+    position: fixed;
+    bottom: var(--space-lg);
+    right: var(--space-lg);
+    background: var(--color-primary);
+    color: #fff;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    animation: fadeInOut 4s forwards;
+    z-index: 3000;
+}
+@keyframes fadeInOut {
+    0% {opacity: 0; transform: translateY(20px);}
+    10% {opacity: 1; transform: translateY(0);}
+    90% {opacity: 1;}
+    100% {opacity: 0; transform: translateY(20px);}
+}
+
+/* Teacher timetable management */
+.timetable-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--space-sm);
+    align-items: end;
+}
+.timetable-toolbar .input-field {
+    margin-bottom: var(--space-sm);
+}
+.timetable-views,
+.schedule-dialog-actions,
+.schedule-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin: var(--space-sm) 0;
+}
+.timetable-table {
+    display: block;
+    overflow-x: auto;
+}
+.timetable-table td {
+    vertical-align: top;
+}
+.weekly-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(180px, 1fr));
+    gap: var(--space-sm);
+    overflow-x: auto;
+    padding-bottom: var(--space-sm);
+}
+.weekly-day {
+    background: var(--color-background);
+    border: 1px solid var(--color-muted);
+    border-radius: var(--radius-sm);
+    min-height: 10rem;
+    padding: var(--space-sm);
+}
+.weekly-day h3 {
+    font-size: var(--font-size-md);
+}
+.weekly-schedule {
+    background: var(--color-surface);
+    border-left: 3px solid var(--color-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-sm);
+    padding: var(--space-xs);
+    overflow-wrap: anywhere;
+}
+.weekly-schedule h4 {
+    font-size: var(--font-size-md);
+    margin-bottom: var(--space-xxs);
+}
+.weekly-schedule p {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-xxs);
+}
+.form-message {
+    min-height: 1.25em;
+}
+.form-message.error {
+    color: #a32121;
+}
+.schedule-dialog {
+    border: 0;
+    border-radius: var(--radius-md);
+    max-height: 90vh;
+    max-width: 560px;
+    overflow-y: auto;
+    padding: var(--space-lg);
+    width: calc(100% - 2rem);
+}
+.schedule-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+}
+.schedule-dialog form {
+    display: grid;
+}
+.schedule-dialog h2 {
+    margin-top: 0;
+}
+.schedule-time-fields {
+    display: grid;
+    gap: var(--space-sm);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.schedule-dialog-actions {
+    justify-content: flex-end;
+    margin-bottom: 0;
+}
+.classroom-form {
+    display: grid;
+    max-width: 640px;
+}
+.classroom-form h3 {
+    margin-bottom: var(--space-sm);
+}
+.classroom-form .input-field {
+    margin-bottom: var(--space-sm);
+}
+.classroom-form .schedule-dialog-actions {
+    justify-content: flex-start;
+}
+.classroom-form .btn-secondary[hidden] {
+    display: none;
+}
+@media (max-width: 768px) {
+    .timetable-toolbar {
+        grid-template-columns: 1fr;
+    }
+}

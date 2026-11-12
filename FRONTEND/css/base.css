@@ -1,0 +1,73 @@
+/* Base stylesheet for CampusSpace */
+:root {
+    --primary: #2c3e50;
+    --accent: #3498db;
+    --background: #f5f7fa;
+    --text: #2d3436;
+    --card-bg: #ffffff;
+    --shadow: rgba(0,0,0,0.1);
+    --radius: 8px;
+    --spacing: 1rem;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--background);
+    color: var(--text);
+}
+
+header {
+    background: var(--primary);
+    color: #fff;
+    padding: var(--spacing);
+    text-align: center;
+}
+
+.main {
+    padding: var(--spacing);
+}
+
+.header .logo {
+    height: 80px;
+    margin-bottom: var(--spacing);
+}
+
+.selection {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--spacing);
+    padding: var(--spacing);
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 4px var(--shadow);
+    width: 280px;
+    padding: var(--spacing);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.card .icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto var(--spacing);
+}
+
+button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+button:hover { background: #2980b9; }
+

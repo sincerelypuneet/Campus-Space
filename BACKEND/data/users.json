@@ -1,0 +1,32 @@
+[
+  {
+    "id": "u-001",
+    "username": "admin1",
+    "password_hash": "$2b$12$KIXQx4y8eB9gR1ZJKD7c2uJ0f6J0XjQ1cKcXh1Vw9KpH3D0H/9WGa",
+    "role": "admin"
+  },
+  {
+    "id": "u-002",
+    "username": "admin2",
+    "password_hash": "$2b$12$N6Z5cV6vBnV6kZ8pJ5d7WeXbB4nK3j9H2lK2cVvU5h8tF9G3dK2Ea",
+    "role": "admin"
+  },
+  {
+    "id": "u-003",
+    "username": "admin3",
+    "password_hash": "$2b$12$aQ1c3gG2hU3vB5dF6kL9zOqJ0rS8eA7tVbZc4Wk5e2Yh6U9lM1nB2",
+    "role": "admin"
+  },
+  {
+    "id": "u-004",
+    "username": "admin4",
+    "password_hash": "$2b$12$L9eFh3V6jK2b9Yp5cU7iX0qR3sT1oW4zG5hN8cV2lM7bD4kS6pA8c",
+    "role": "admin"
+  },
+  {
+    "id": "u-005",
+    "username": "admin5",
+    "password_hash": "$2b$12$P8gK7hL1mN9rQ6vZ0xC3tU5wJ2dE4aF9bK6rY1sR8mL3cV5tU7pC2",
+    "role": "admin"
+  }
+]
