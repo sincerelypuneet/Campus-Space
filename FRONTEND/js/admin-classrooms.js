@@ -153,7 +153,7 @@ async function deleteClassroom(classroom) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   if (!sessionStorage.getItem('authToken')) {
-    window.location.href = 'login.html';
+    window.location.href = 'login.html?returnTo=admin-classrooms.html';
     return;
   }
   document.getElementById('classroom-form').addEventListener('submit', saveClassroom);

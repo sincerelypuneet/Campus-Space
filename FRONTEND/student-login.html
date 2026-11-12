@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,21 +11,24 @@
     <link rel="stylesheet" href="css/components.css">
     <script src="js/student-login.js" defer></script>
 </head>
+
 <body class="auth-page" data-role="guest">
     <main class="auth-container" style="max-width:400px;margin:auto;padding:var(--space-lg);">
         <div class="card" style="padding:var(--space-lg);">
             <h1 class="card-title" style="text-align:center;">Student Login</h1>
-            <p>Enter  username and password to continue to the student dashboard.</p>
-                  
+            <p>Enter username and password to continue to the student dashboard.</p>
             <form id="student-login-form">
                 <label for="student-username">Username</label>
-                <input type="text" id="student-username" name="username" class="input-field" autocomplete="username" required />
+                <input type="text" id="student-username" name="username" class="input-field" autocomplete="username"
+                    required />
                 <label for="student-password">Password</label>
-                <input type="password" id="student-password" name="password" class="input-field" autocomplete="current-password" required />
+                <input type="password" id="student-password" name="password" class="input-field"
+                    autocomplete="current-password" required />
                 <button type="submit" class="btn btn-primary">Continue</button>
                 <p id="student-login-error" class="form-message error" role="alert"></p>
             </form>
         </div>
     </main>
 </body>
+
 </html>
