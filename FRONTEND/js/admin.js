@@ -23,7 +23,7 @@ async function loadTeachers() {
 }
 
 function renderTeacherTable(teachers) {
-  const root = document.getElementById('admin-root');
+  const root = document.getElementById('teacher-list') || document.getElementById('admin-root');
   if (!root) return;
   const table = document.createElement('table');
   table.className = 'table';

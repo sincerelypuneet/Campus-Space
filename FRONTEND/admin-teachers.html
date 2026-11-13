@@ -2,9 +2,11 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CampusSpace - Teacher Management</title>
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
     <link rel="stylesheet" href="css/components.css">
     <script src="js/app.js" defer></script>
     <script src="js/admin.js" defer></script>
@@ -14,13 +16,13 @@
     <header class="app-header">
         <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
         <h1 class="title">CampusSpace Admin – Teacher Management</h1>
-        <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
     </header>
     <aside class="sidebar" id="sidebar">
-        <nav>
+        <nav aria-label="Admin navigation">
             <ul>
                 <li><a href="admin-dashboard.html">Home</a></li>
-                <li><a href="admin-teachers.html">Teacher Management</a></li>
+                <li><a class="active" href="admin-teachers.html">Teacher Management</a></li>
                 <li><a href="admin-timetable.html">Timetable Management</a></li>
                 <li><a href="admin-classrooms.html">Classroom Management</a></li>
             </ul>
@@ -30,7 +32,8 @@
         <section class="card">
             <h2 class="card-title">Teacher Management</h2>
             <button class="btn-primary" id="add-teacher-btn">Add Teacher</button>
-            <div id="form-container" style="margin-top:1rem;"></div>
+            <div id="form-container" class="teacher-form-container"></div>
+            <div id="teacher-list" aria-live="polite"></div>
         </section>
     </main>
 </body>
