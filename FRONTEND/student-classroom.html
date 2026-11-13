@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusSpace – Find a Free Classroom</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/student-classroom.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="student">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace – Find a Free Classroom</h1>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+        <section class="card">
+            <h2 class="card-title">Find a Free Classroom</h2>
+            <p>Search classrooms using the current timetable, approved bookings, and maintenance records.</p>
+            <form id="classroom-search-form" class="classroom-search-form">
+                <div>
+                    <label for="classroom-date">Date</label>
+                    <input id="classroom-date" name="date" class="input-field" type="date" required>
+                </div>
+                <div>
+                    <label for="classroom-start">Start time</label>
+                    <input id="classroom-start" name="start" class="input-field" type="time" required>
+                </div>
+                <div>
+                    <label for="classroom-end">End time</label>
+                    <input id="classroom-end" name="end" class="input-field" type="time" required>
+                </div>
+                <div>
+                    <label for="classroom-building">Building filter</label>
+                    <input id="classroom-building" name="building" class="input-field" type="search" placeholder="All buildings">
+                </div>
+                <div>
+                    <label for="classroom-floor">Floor filter</label>
+                    <input id="classroom-floor" name="floor" class="input-field" type="number" min="0" step="1" placeholder="Any floor">
+                </div>
+                <div>
+                    <label for="classroom-capacity">Minimum seating capacity</label>
+                    <input id="classroom-capacity" name="capacity" class="input-field" type="number" min="1" step="1" placeholder="Any capacity">
+                </div>
+                <div>
+                    <label for="classroom-sort">Sort by</label>
+                    <select id="classroom-sort" name="sort" class="input-field">
+                        <option value="none">Default order</option>
+                        <option value="capacity">Capacity (lowest first)</option>
+                        <option value="building">Building (A–Z)</option>
+                    </select>
+                </div>
+                <div class="classroom-search-actions">
+                    <button class="btn-primary" type="submit">Search Classrooms</button>
+                    <button class="btn-secondary" type="reset">Clear</button>
+                </div>
+            </form>
+            <p id="classroom-search-message" class="form-message" role="status" aria-live="polite"></p>
+        </section>
+        <section class="card">
+            <h2 class="card-title">Available Classrooms</h2>
+            <div id="classroom-results" aria-live="polite"></div>
+        </section>
+    </main>
+    <dialog class="schedule-dialog classroom-details-dialog" id="classroom-details" aria-labelledby="classroom-details-title">
+        <div>
+            <h2 id="classroom-details-title">Classroom Details</h2>
+            <div id="classroom-details-content"></div>
+            <div class="schedule-dialog-actions">
+                <button class="btn-primary" type="button" id="reserve-classroom">Reserve Classroom</button>
+                <button class="btn-secondary" type="button" id="close-classroom-details">Close</button>
+            </div>
+        </div>
+    </dialog>
+</body>
+</html>

@@ -396,6 +396,50 @@ label {
 .teacher-profile-day {
     margin: var(--space-md) 0;
 }
+.classroom-search-form {
+    display: grid;
+    gap: 0 var(--space-md);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.classroom-search-form .input-field {
+    margin-bottom: var(--space-sm);
+}
+.classroom-search-actions,
+.classroom-result-actions {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    padding-bottom: var(--space-sm);
+}
+.classroom-result {
+    background: var(--color-background);
+    border: 1px solid var(--color-muted);
+    border-left: 4px solid var(--color-success);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-sm);
+    padding: var(--space-md);
+}
+.classroom-result h3 {
+    display: inline-block;
+    font-size: var(--font-size-md);
+    margin-right: var(--space-sm);
+}
+.classroom-status {
+    color: var(--color-success);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+}
+.classroom-result-details p {
+    margin-bottom: var(--space-xxs);
+}
+.classroom-result-actions {
+    margin-top: var(--space-sm);
+    padding-bottom: 0;
+}
+.classroom-details-dialog {
+    max-width: 560px;
+}
 @media (max-width: 768px) {
     .timetable-toolbar {
         grid-template-columns: 1fr;
@@ -405,5 +449,8 @@ label {
     }
     .teacher-time-range {
         grid-column: auto;
+    }
+    .classroom-search-form {
+        grid-template-columns: 1fr;
     }
 }

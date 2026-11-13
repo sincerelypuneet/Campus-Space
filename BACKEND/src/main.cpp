@@ -18,8 +18,11 @@ using json = nlohmann::json;
 
 namespace {
 const std::string timetableFile = "data/timetables.json";
+const std::string classroomBookingFile = "data/classroom_bookings.json";
+const std::string maintenanceFile = "data/maintenance.json";
 std::mutex timetableMutex;
 std::mutex classroomMutex;
+std::mutex classroomBookingMutex;
 const std::vector<std::string> weekDays = {
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
 };
@@ -58,7 +61,12 @@ bool equalsIgnoreCase(const std::string& left, const std::string& right) {
 
 std::vector<TimetableEntry> loadTimetableEntries() {
     std::ifstream input(timetableFile);
-    if (!input) return {};
+    if (!input) {
+        if (std::filesystem::exists(timetableFile)) {
+            throw std::runtime_error("Unable to read " + timetableFile);
+        }
+        return {};
+    }
 
     json records;
     input >> records;
@@ -81,6 +89,149 @@ std::vector<TimetableEntry> loadTimetableEntries() {
         }
     }
     return entries;
+}
+
+json loadJsonArrayStrict(const std::string& filename) {
+    std::ifstream input(filename);
+    if (!input) {
+        if (std::filesystem::exists(filename)) {
+            throw std::runtime_error("Unable to read " + filename);
+        }
+        return json::array();
+    }
+
+    json records;
+    input >> records;
+    if (!records.is_array()) throw std::runtime_error(filename + " must be a JSON array");
+    return records;
+}
+
+bool parseDate(const std::string& value, int& year, int& month, int& day) {
+    if (value.size() != 10 || value[4] != '-' || value[7] != '-') return false;
+    for (std::size_t index = 0; index < value.size(); ++index) {
+        if (index == 4 || index == 7) continue;
+        if (!std::isdigit(static_cast<unsigned char>(value[index]))) return false;
+    }
+    year = std::stoi(value.substr(0, 4));
+    month = std::stoi(value.substr(5, 2));
+    day = std::stoi(value.substr(8, 2));
+    if (year < 1 || month < 1 || month > 12) return false;
+    const bool leapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    const int daysInMonth[] = {31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    return day >= 1 && day <= daysInMonth[month - 1];
+}
+
+std::string dayOfWeek(const std::string& date) {
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    if (!parseDate(date, year, month, day)) return "";
+
+    year -= month <= 2;
+    const int era = (year >= 0 ? year : year - 399) / 400;
+    const unsigned yearOfEra = static_cast<unsigned>(year - era * 400);
+    const unsigned adjustedMonth = static_cast<unsigned>(month + (month > 2 ? -3 : 9));
+    const unsigned dayOfYear = (153 * adjustedMonth + 2) / 5 + static_cast<unsigned>(day - 1);
+    const unsigned dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+    const long long daysSinceEpoch = static_cast<long long>(era) * 146097 + dayOfEra - 719468;
+    const int sundayBasedDay = static_cast<int>((daysSinceEpoch % 7 + 7) % 7 + 4) % 7;
+    static const std::vector<std::string> days = {
+        "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+    };
+    return days[static_cast<std::size_t>(sundayBasedDay)];
+}
+
+bool sameRoom(const json& record, const Classroom& classroom) {
+    for (const auto& key : {"room_id", "classroom_id"}) {
+        if (record.contains(key) && record[key].is_string() &&
+            record[key].get<std::string>() == classroom.id) return true;
+    }
+
+    const std::string building = record.value("building", "");
+    const std::string roomNumber = record.value("room_number", "");
+    if (!building.empty() && !roomNumber.empty() &&
+        equalsIgnoreCase(building, classroom.building) &&
+        equalsIgnoreCase(roomNumber, classroom.room_number)) {
+        if (!record.contains("floor") || !record["floor"].is_number_integer()) return true;
+        const int recordFloor = record["floor"].get<int>();
+        if (recordFloor < 0 || recordFloor == classroom.floor) {
+            return true;
+        }
+    }
+
+    if (record.contains("classroom") && record["classroom"].is_string()) {
+        const auto room = record["classroom"].get<std::string>();
+        return equalsIgnoreCase(room, classroom.id) ||
+            equalsIgnoreCase(room, classroom.room_number);
+    }
+    return false;
+}
+
+bool overlaps(const std::string& startValue, const std::string& endValue,
+              int requestedStart, int requestedEnd) {
+    int start = 0;
+    int end = 0;
+    if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) return true;
+    return requestedStart < end && start < requestedEnd;
+}
+
+bool roomIsAvailable(const Classroom& classroom, const std::string& date,
+                    const std::string& day, int requestedStart, int requestedEnd,
+                    const std::vector<TimetableEntry>& timetables,
+                    const json& bookings, const json& maintenance) {
+    for (const auto& entry : timetables) {
+        json room = {
+            {"building", entry.building},
+            {"floor", entry.floor},
+            {"room_number", entry.room_number},
+            {"classroom", entry.classroom}
+        };
+        if (equalsIgnoreCase(entry.day, day) && sameRoom(room, classroom) &&
+            overlaps(entry.start, entry.end, requestedStart, requestedEnd)) return false;
+    }
+
+    for (const auto& booking : bookings) {
+        if (!booking.is_object() || !sameRoom(booking, classroom)) continue;
+        const std::string status = booking.value("status", "approved");
+        if (status != "approved" && status != "confirmed" &&
+            status != "pending" && status != "active") continue;
+        if (booking.contains("date") && booking["date"].is_string()) {
+            const auto bookingDate = booking["date"].get<std::string>();
+            int year = 0, month = 0, day = 0;
+            if (!parseDate(bookingDate, year, month, day)) return false;
+            if (bookingDate != date) continue;
+        }
+        if (overlaps(booking.value("start", ""), booking.value("end", ""),
+                     requestedStart, requestedEnd)) return false;
+    }
+
+    for (const auto& record : maintenance) {
+        if (!record.is_object() || !sameRoom(record, classroom)) continue;
+        const std::string status = record.value("status", "active");
+        if (status == "completed" || status == "cancelled" ||
+            status == "resolved" || status == "inactive") continue;
+
+        if (record.contains("date") && record["date"].is_string()) {
+            const auto maintenanceDate = record["date"].get<std::string>();
+            int maintenanceYear = 0, maintenanceMonth = 0, maintenanceDay = 0;
+            if (!parseDate(maintenanceDate, maintenanceYear, maintenanceMonth, maintenanceDay)) return false;
+            if (maintenanceDate != date) continue;
+        } else if (record.contains("start_date") && record["start_date"].is_string() &&
+                   record.contains("end_date") && record["end_date"].is_string()) {
+            const auto startDate = record["start_date"].get<std::string>();
+            const auto endDate = record["end_date"].get<std::string>();
+            int startYear = 0, startMonth = 0, startDay = 0;
+            int endYear = 0, endMonth = 0, endDay = 0;
+            if (!parseDate(startDate, startYear, startMonth, startDay) ||
+                !parseDate(endDate, endYear, endMonth, endDay) ||
+                startDate > endDate) return false;
+            if (date < startDate || date > endDate) continue;
+        }
+
+        if (overlaps(record.value("start", ""), record.value("end", ""),
+                     requestedStart, requestedEnd)) return false;
+    }
+    return true;
 }
 
 bool saveTimetableEntries(const std::vector<TimetableEntry>& entries) {
@@ -768,6 +919,193 @@ int main() {
             res.set_content(json{{"message", "Classroom deleted"}}.dump(), "application/json");
         } catch (const std::exception& error) {
             sendApiError(res, 500, std::string("Unable to save classroom data: ") + error.what());
+        }
+    });
+
+    // Public classroom search; availability is calculated from current server-side records.
+    svr.Get("/api/student/classrooms", [](const httplib::Request& req, httplib::Response& res) {
+        const std::string date = req.get_param_value("date");
+        const std::string startValue = req.get_param_value("start");
+        const std::string endValue = req.get_param_value("end");
+        const std::string buildingFilter = trim(req.get_param_value("building"));
+        const std::string floorFilter = req.get_param_value("floor");
+        const std::string capacityFilter = req.get_param_value("min_capacity");
+        int year = 0, month = 0, dayOfMonth = 0;
+        int start = 0, end = 0;
+        if (!parseDate(date, year, month, dayOfMonth)) {
+            sendApiError(res, 400, "date must be a valid YYYY-MM-DD date");
+            return;
+        }
+        if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) {
+            sendApiError(res, 400, "start and end must be valid 24-hour times, with end after start");
+            return;
+        }
+
+        int floor = 0;
+        if (!floorFilter.empty()) {
+            try {
+                std::size_t parsed = 0;
+                floor = std::stoi(floorFilter, &parsed);
+                if (parsed != floorFilter.size() || floor < 0) throw std::invalid_argument("floor");
+            } catch (const std::exception&) {
+                sendApiError(res, 400, "floor must be a non-negative integer");
+                return;
+            }
+        }
+        int minimumCapacity = 0;
+        if (!capacityFilter.empty()) {
+            try {
+                std::size_t parsed = 0;
+                minimumCapacity = std::stoi(capacityFilter, &parsed);
+                if (parsed != capacityFilter.size() || minimumCapacity < 1) {
+                    throw std::invalid_argument("capacity");
+                }
+            } catch (const std::exception&) {
+                sendApiError(res, 400, "min_capacity must be a positive integer");
+                return;
+            }
+        }
+
+        try {
+            std::unique_lock<std::mutex> classroomLock(classroomMutex, std::defer_lock);
+            std::unique_lock<std::mutex> timetableLock(timetableMutex, std::defer_lock);
+            std::unique_lock<std::mutex> bookingLock(classroomBookingMutex, std::defer_lock);
+            std::lock(classroomLock, timetableLock, bookingLock);
+            const auto classrooms = loadJsonArrayStrict("data/classrooms.json").get<std::vector<Classroom>>();
+            const auto timetables = loadTimetableEntries();
+            auto bookings = loadJsonArrayStrict("data/bookings.json");
+            auto classroomBookings = loadJsonArrayStrict(classroomBookingFile);
+            bookings.insert(bookings.end(), classroomBookings.begin(), classroomBookings.end());
+            const auto maintenance = loadJsonArrayStrict(maintenanceFile);
+            const std::string day = dayOfWeek(date);
+
+            std::vector<Classroom> available;
+            for (const auto& classroom : classrooms) {
+                if (!buildingFilter.empty() && !equalsIgnoreCase(classroom.building, buildingFilter)) continue;
+                if (!floorFilter.empty() && classroom.floor != floor) continue;
+                if (classroom.capacity < minimumCapacity) continue;
+                if (roomIsAvailable(classroom, date, day, start, end, timetables, bookings, maintenance)) {
+                    available.push_back(classroom);
+                }
+            }
+
+            const std::string sort = req.get_param_value("sort");
+            if (sort == "capacity") {
+                std::sort(available.begin(), available.end(), [](const Classroom& left, const Classroom& right) {
+                    return left.capacity == right.capacity
+                        ? left.building < right.building
+                        : left.capacity < right.capacity;
+                });
+            } else if (sort == "building") {
+                std::sort(available.begin(), available.end(), [](const Classroom& left, const Classroom& right) {
+                    return left.building == right.building
+                        ? left.room_number < right.room_number
+                        : left.building < right.building;
+                });
+            } else if (!sort.empty() && sort != "none") {
+                sendApiError(res, 400, "sort must be capacity, building, or none");
+                return;
+            }
+
+            json result = json::array();
+            for (const auto& classroom : available) {
+                json item = classroom;
+                item["availability_status"] = "Available";
+                result.push_back(std::move(item));
+            }
+            res.set_content(json{{"classrooms", result}}.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to check classroom availability: ") + error.what());
+        }
+    });
+
+    // Recheck availability while holding the same locks used by the search before reserving.
+    svr.Post("/api/student/classroom-bookings", [](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (const json::exception&) {
+            sendApiError(res, 400, "Invalid JSON");
+            return;
+        }
+        if (!body.is_object()) {
+            sendApiError(res, 400, "Request body must be a JSON object");
+            return;
+        }
+        for (const auto& field : {"classroom_id", "date", "start", "end"}) {
+            if (!body.contains(field) || !body[field].is_string() ||
+                trim(body[field].get<std::string>()).empty()) {
+                sendApiError(res, 400, std::string(field) + " is required");
+                return;
+            }
+        }
+        if (body.contains("student_name") && !body["student_name"].is_string()) {
+            sendApiError(res, 400, "student_name must be a string");
+            return;
+        }
+
+        const std::string classroomId = trim(body["classroom_id"].get<std::string>());
+        const std::string date = trim(body["date"].get<std::string>());
+        const std::string startValue = trim(body["start"].get<std::string>());
+        const std::string endValue = trim(body["end"].get<std::string>());
+        int year = 0, month = 0, dayOfMonth = 0;
+        int start = 0, end = 0;
+        if (!parseDate(date, year, month, dayOfMonth)) {
+            sendApiError(res, 400, "date must be a valid YYYY-MM-DD date");
+            return;
+        }
+        if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) {
+            sendApiError(res, 400, "start and end must be valid 24-hour times, with end after start");
+            return;
+        }
+
+        try {
+            std::unique_lock<std::mutex> classroomLock(classroomMutex, std::defer_lock);
+            std::unique_lock<std::mutex> timetableLock(timetableMutex, std::defer_lock);
+            std::unique_lock<std::mutex> bookingLock(classroomBookingMutex, std::defer_lock);
+            std::lock(classroomLock, timetableLock, bookingLock);
+            const auto classrooms = loadJsonArrayStrict("data/classrooms.json").get<std::vector<Classroom>>();
+            const auto classroom = std::find_if(classrooms.begin(), classrooms.end(),
+                [&](const Classroom& item) { return item.id == classroomId; });
+            if (classroom == classrooms.end()) {
+                sendApiError(res, 404, "Classroom not found");
+                return;
+            }
+
+            const auto timetables = loadTimetableEntries();
+            auto bookings = loadJsonArrayStrict("data/bookings.json");
+            auto classroomBookingRecords =
+                loadJsonArrayStrict(classroomBookingFile).get<std::vector<json>>();
+            bookings.insert(bookings.end(), classroomBookingRecords.begin(), classroomBookingRecords.end());
+            const auto maintenance = loadJsonArrayStrict(maintenanceFile);
+            if (!roomIsAvailable(*classroom, date, dayOfWeek(date), start, end,
+                                 timetables, bookings, maintenance)) {
+                sendApiError(res, 409, "This classroom is no longer available for the selected time.");
+                return;
+            }
+
+            json booking = {
+                {"id", Storage::generateId("classroom-booking-")},
+                {"classroom_id", classroom->id},
+                {"building", classroom->building},
+                {"floor", classroom->floor},
+                {"room_number", classroom->room_number},
+                {"date", date},
+                {"start", startValue},
+                {"end", endValue},
+                {"status", "approved"},
+                {"student_name", trim(body.value("student_name", ""))}
+            };
+            classroomBookingRecords.push_back(booking);
+            if (!Storage::save<json>(classroomBookingFile, classroomBookingRecords)) {
+                sendApiError(res, 500, "Unable to save classroom booking");
+                return;
+            }
+            res.status = 201;
+            res.set_content(json{{"message", "Classroom reserved"}, {"booking", booking}}.dump(),
+                            "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to reserve classroom: ") + error.what());
         }
     });
 

@@ -31,3 +31,14 @@ teacher records and saved timetable entries; optional `working_days`, `working_s
 and `working_end` teacher fields define working hours. When working hours are not
 configured, availability is limited to the span of that teacher's scheduled classes
 for the selected day rather than assuming a campus-wide timetable.
+
+Students can search and reserve free classrooms at `http://localhost:8080/student-classroom.html`.
+The C++ availability endpoint checks classroom inventory, weekly timetable allocations,
+approved/pending classroom bookings, and maintenance records for the selected date and
+time. Classroom reservations are stored in `BACKEND/data/classroom_bookings.json` and
+are rechecked atomically to prevent overlapping reservations. Store classroom maintenance
+records in `BACKEND/data/maintenance.json` as a JSON array with a `classroom_id` (or
+`building`, `floor`, and `room_number`), an active `status`, and either `date` or
+inclusive `start_date`/`end_date` fields; optional `start` and `end` times limit the
+maintenance window. Completed, cancelled, resolved, and inactive records do not block
+availability. Existing room entries in `BACKEND/data/bookings.json` are also considered.
