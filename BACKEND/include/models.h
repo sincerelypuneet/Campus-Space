@@ -53,14 +53,21 @@ struct Classroom {
 struct Laboratory {
     std::string id;
     std::string name;
+    std::string building;
+    int floor = 0;
+    std::string room_number;
     std::string category; // "LPC" or "HPC"
-    int total_computers;
-    bool maintenance;
+    int total_computers = 0;
+    std::string lab_administrator;
+    std::string operational_status = "operational";
+    bool maintenance = false; // Legacy field retained for existing lab records.
 };
 
 struct Computer {
     std::string id;
     std::string lab_id;
+    int computer_number = 0;
+    std::string specifications;
     std::string status; // "available", "occupied", "maintenance"
 };
 
@@ -144,24 +151,54 @@ namespace nlohmann {
     };
     template <> struct adl_serializer<Laboratory> {
         static void to_json(json& j, const Laboratory& l) {
-            j = json{{"id", l.id}, {"name", l.name}, {"category", l.category}, {"total_computers", l.total_computers}, {"maintenance", l.maintenance}};
+            j = json{
+                {"id", l.id},
+                {"name", l.name},
+                {"building", l.building},
+                {"floor", l.floor},
+                {"room_number", l.room_number},
+                {"category", l.category},
+                {"total_computers", l.total_computers},
+                {"lab_administrator", l.lab_administrator},
+                {"operational_status", l.operational_status},
+                {"maintenance", l.operational_status == "maintenance"}
+            };
         }
         static void from_json(const json& j, Laboratory& l) {
             j.at("id").get_to(l.id);
             j.at("name").get_to(l.name);
             j.at("category").get_to(l.category);
-            j.at("total_computers").get_to(l.total_computers);
-            j.at("maintenance").get_to(l.maintenance);
+            if (j.contains("building")) j.at("building").get_to(l.building);
+            if (j.contains("floor")) j.at("floor").get_to(l.floor);
+            if (j.contains("room_number")) j.at("room_number").get_to(l.room_number);
+            if (j.contains("total_computers")) j.at("total_computers").get_to(l.total_computers);
+            if (j.contains("lab_administrator")) j.at("lab_administrator").get_to(l.lab_administrator);
+            if (j.contains("operational_status")) {
+                j.at("operational_status").get_to(l.operational_status);
+            } else if (j.value("maintenance", false)) {
+                l.operational_status = "maintenance";
+            }
+            l.maintenance = l.operational_status == "maintenance";
         }
     };
     template <> struct adl_serializer<Computer> {
         static void to_json(json& j, const Computer& c) {
-            j = json{{"id", c.id}, {"lab_id", c.lab_id}, {"status", c.status}};
+            j = json{
+                {"id", c.id},
+                {"lab_id", c.lab_id},
+                {"computer_number", c.computer_number},
+                {"specifications", c.specifications},
+                {"status", c.status},
+                {"operational_status", c.status}
+            };
         }
         static void from_json(const json& j, Computer& c) {
             j.at("id").get_to(c.id);
             j.at("lab_id").get_to(c.lab_id);
-            j.at("status").get_to(c.status);
+            if (j.contains("computer_number")) j.at("computer_number").get_to(c.computer_number);
+            if (j.contains("specifications")) j.at("specifications").get_to(c.specifications);
+            if (j.contains("operational_status")) j.at("operational_status").get_to(c.status);
+            else if (j.contains("status")) j.at("status").get_to(c.status);
         }
     };
     template <> struct adl_serializer<Booking> {

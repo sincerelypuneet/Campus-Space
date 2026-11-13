@@ -20,9 +20,12 @@ namespace {
 const std::string timetableFile = "data/timetables.json";
 const std::string classroomBookingFile = "data/classroom_bookings.json";
 const std::string maintenanceFile = "data/maintenance.json";
+const std::string laboratoriesFile = "data/laboratories.json";
+const std::string computersFile = "data/computers.json";
 std::mutex timetableMutex;
 std::mutex classroomMutex;
 std::mutex classroomBookingMutex;
+std::mutex laboratoryMutex;
 const std::vector<std::string> weekDays = {
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
 };
@@ -370,6 +373,209 @@ bool readNonNegativeInteger(const json& value, int minimum, int& result) {
         result = static_cast<int>(number);
     }
     return result >= minimum;
+}
+
+bool applyLaboratoryFields(const json& body, Laboratory& laboratory, bool requireAll,
+                           std::string& error) {
+    const std::vector<std::string> stringFields = {
+        "name", "building", "room_number", "category", "lab_administrator", "operational_status"
+    };
+    for (const auto& field : stringFields) {
+        if (requireAll && !body.contains(field)) {
+            error = "Missing field " + field;
+            return false;
+        }
+        if (!body.contains(field)) continue;
+        if (!body[field].is_string()) {
+            error = field + " must be a string";
+            return false;
+        }
+        std::string value = trim(body[field].get<std::string>());
+        if (value.empty()) {
+            error = field + " cannot be empty";
+            return false;
+        }
+        if (field == "category") {
+            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+                return static_cast<char>(std::toupper(ch));
+            });
+            if (value != "LPC" && value != "HPC") {
+                error = "category must be LPC or HPC";
+                return false;
+            }
+            laboratory.category = value;
+        } else if (field == "operational_status") {
+            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+                return static_cast<char>(std::tolower(ch));
+            });
+            if (value != "operational" && value != "maintenance" && value != "inactive") {
+                error = "operational_status must be operational, maintenance, or inactive";
+                return false;
+            }
+            laboratory.operational_status = value;
+            laboratory.maintenance = value == "maintenance";
+        } else if (field == "name") {
+            if (value.size() > 100) {
+                error = "name cannot exceed 100 characters";
+                return false;
+            }
+            laboratory.name = value;
+        } else if (field == "building") {
+            if (value.size() > 80) {
+                error = "building cannot exceed 80 characters";
+                return false;
+            }
+            laboratory.building = value;
+        } else if (field == "room_number") {
+            if (value.size() > 40) {
+                error = "room_number cannot exceed 40 characters";
+                return false;
+            }
+            laboratory.room_number = value;
+        } else {
+            if (value.size() > 100) {
+                error = "lab_administrator cannot exceed 100 characters";
+                return false;
+            }
+            laboratory.lab_administrator = value;
+        }
+    }
+
+    if (requireAll && !body.contains("floor")) {
+        error = "Missing field floor";
+        return false;
+    }
+    if (body.contains("floor")) {
+        if (!readNonNegativeInteger(body["floor"], 0, laboratory.floor)) {
+            error = "floor must be a non-negative integer";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool validateLaboratory(const Laboratory& laboratory, const std::vector<Laboratory>& existing,
+                        const std::string& ignoredId, std::string& error) {
+    const auto duplicate = std::find_if(existing.begin(), existing.end(), [&](const Laboratory& other) {
+        return other.id != ignoredId && other.floor == laboratory.floor &&
+            equalsIgnoreCase(other.building, laboratory.building) &&
+            equalsIgnoreCase(other.room_number, laboratory.room_number);
+    });
+    if (duplicate != existing.end()) {
+        error = "A laboratory already exists at that building, floor, and room";
+        return false;
+    }
+    return true;
+}
+
+bool applyComputerFields(const json& body, Computer& computer, bool requireAll, std::string& error) {
+    if (requireAll && !body.contains("lab_id")) {
+        error = "Missing field lab_id";
+        return false;
+    }
+    if (body.contains("lab_id")) {
+        if (!body["lab_id"].is_string() || trim(body["lab_id"].get<std::string>()).empty()) {
+            error = "lab_id must be a non-empty string";
+            return false;
+        }
+        computer.lab_id = trim(body["lab_id"].get<std::string>());
+    }
+
+    if (requireAll && !body.contains("computer_number")) {
+        error = "Missing field computer_number";
+        return false;
+    }
+    if (body.contains("computer_number") &&
+        !readNonNegativeInteger(body["computer_number"], 1, computer.computer_number)) {
+        error = "computer_number must be a positive integer";
+        return false;
+    }
+
+    if (requireAll && !body.contains("specifications")) {
+        error = "Missing field specifications";
+        return false;
+    }
+    if (body.contains("specifications")) {
+        if (!body["specifications"].is_string()) {
+            error = "specifications must be a string";
+            return false;
+        }
+        computer.specifications = trim(body["specifications"].get<std::string>());
+        if (computer.specifications.empty() || computer.specifications.size() > 500) {
+            error = "specifications must contain 1 to 500 characters";
+            return false;
+        }
+    }
+
+    const char* statusField = body.contains("operational_status")
+        ? "operational_status"
+        : body.contains("status") ? "status" : nullptr;
+    if (requireAll && !statusField) {
+        error = "Missing field operational_status";
+        return false;
+    }
+    if (statusField) {
+        if (!body[statusField].is_string()) {
+            error = "operational_status must be a string";
+            return false;
+        }
+        std::string status = trim(body[statusField].get<std::string>());
+        std::transform(status.begin(), status.end(), status.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        if (status != "available" && status != "occupied" && status != "maintenance") {
+            error = "operational_status must be available, occupied, or maintenance";
+            return false;
+        }
+        computer.status = status;
+    }
+    return true;
+}
+
+bool validateComputer(const Computer& computer, const std::vector<Computer>& existing,
+                      const std::string& ignoredId, std::string& error) {
+    const auto duplicate = std::find_if(existing.begin(), existing.end(), [&](const Computer& other) {
+        return other.id != ignoredId && other.lab_id == computer.lab_id &&
+            other.computer_number == computer.computer_number;
+    });
+    if (duplicate != existing.end()) {
+        error = "That computer number is already assigned in this laboratory";
+        return false;
+    }
+    return true;
+}
+
+void updateLaboratoryComputerCounts(std::vector<Laboratory>& laboratories,
+                                   const std::vector<Computer>& computers) {
+    for (auto& laboratory : laboratories) {
+        laboratory.total_computers = static_cast<int>(std::count_if(
+            computers.begin(), computers.end(), [&](const Computer& computer) {
+                return computer.lab_id == laboratory.id;
+            }));
+        laboratory.maintenance = laboratory.operational_status == "maintenance";
+    }
+}
+
+bool saveLaboratoryInventory(const std::vector<Laboratory>& laboratories,
+                             const std::vector<Computer>& computers,
+                             const std::vector<Laboratory>& previousLaboratories,
+                             const std::vector<Computer>& previousComputers,
+                             std::string& error) {
+    if (!Storage::save<Computer>(computersFile, computers)) {
+        const bool restored = Storage::save<Computer>(computersFile, previousComputers);
+        error = restored
+            ? "Unable to save computer data; the previous inventory was restored"
+            : "Unable to save computer data and failed to restore the previous computer inventory";
+        return false;
+    }
+    if (Storage::save<Laboratory>(laboratoriesFile, laboratories)) return true;
+
+    const bool computersRestored = Storage::save<Computer>(computersFile, previousComputers);
+    const bool laboratoriesRestored = Storage::save<Laboratory>(laboratoriesFile, previousLaboratories);
+    error = computersRestored && laboratoriesRestored
+        ? "Unable to save laboratory data; computer changes were rolled back"
+        : "Unable to save laboratory data and failed to restore the previous inventory";
+    return false;
 }
 
 bool applyClassroomFields(const json& body, Classroom& classroom, bool requireAll, std::string& error) {
@@ -921,6 +1127,320 @@ int main() {
             sendApiError(res, 500, std::string("Unable to save classroom data: ") + error.what());
         }
     });
+
+    // Laboratory and computer inventory endpoints (admin only).
+    svr.Get("/api/laboratories", [](const httplib::Request& req, httplib::Response& res) {
+        if (!verifyAuth(req, res, "admin")) return;
+        try {
+            std::lock_guard<std::mutex> lock(laboratoryMutex);
+            auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            const auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+            bool countsChanged = false;
+            for (auto& laboratory : laboratories) {
+                const int count = static_cast<int>(std::count_if(
+                    computers.begin(), computers.end(), [&](const Computer& computer) {
+                        return computer.lab_id == laboratory.id;
+                    }));
+                if (laboratory.total_computers != count) {
+                    laboratory.total_computers = count;
+                    countsChanged = true;
+                }
+                laboratory.maintenance = laboratory.operational_status == "maintenance";
+            }
+            if (countsChanged && !Storage::save<Laboratory>(laboratoriesFile, laboratories)) {
+                sendApiError(res, 500, "Unable to update laboratory computer counts");
+                return;
+            }
+            res.set_content(json(laboratories).dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read laboratory data: ") + error.what());
+        }
+    });
+
+    svr.Post("/api/laboratories", [](const httplib::Request& req, httplib::Response& res) {
+        if (!verifyAuth(req, res, "admin")) return;
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (const json::exception&) {
+            sendApiError(res, 400, "Invalid JSON");
+            return;
+        }
+        if (!body.is_object()) {
+            sendApiError(res, 400, "Request body must be a JSON object");
+            return;
+        }
+
+        try {
+            std::lock_guard<std::mutex> lock(laboratoryMutex);
+            auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            Laboratory laboratory;
+            std::string error;
+            if (!applyLaboratoryFields(body, laboratory, true, error)) {
+                sendApiError(res, 400, error);
+                return;
+            }
+            if (!validateLaboratory(laboratory, laboratories, "", error)) {
+                sendApiError(res, 409, error);
+                return;
+            }
+            do {
+                laboratory.id = Storage::generateId("lab-");
+            } while (std::any_of(laboratories.begin(), laboratories.end(), [&](const Laboratory& other) {
+                return other.id == laboratory.id;
+            }));
+            laboratory.total_computers = 0;
+            laboratories.push_back(laboratory);
+            if (!Storage::save<Laboratory>(laboratoriesFile, laboratories)) {
+                sendApiError(res, 500, "Unable to save laboratory data");
+                return;
+            }
+            res.status = 201;
+            res.set_content(json{{"message", "Laboratory created"}, {"id", laboratory.id}}.dump(),
+                            "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to save laboratory data: ") + error.what());
+        }
+    });
+
+    svr.Put(R"(/api/laboratories/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            json body;
+            try {
+                body = json::parse(req.body);
+            } catch (const json::exception&) {
+                sendApiError(res, 400, "Invalid JSON");
+                return;
+            }
+            if (!body.is_object()) {
+                sendApiError(res, 400, "Request body must be a JSON object");
+                return;
+            }
+
+            try {
+                std::lock_guard<std::mutex> lock(laboratoryMutex);
+                auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+                const std::string laboratoryId = req.matches[1];
+                auto laboratory = std::find_if(laboratories.begin(), laboratories.end(),
+                    [&](const Laboratory& item) { return item.id == laboratoryId; });
+                if (laboratory == laboratories.end()) {
+                    sendApiError(res, 404, "Laboratory not found");
+                    return;
+                }
+                std::string error;
+                if (!applyLaboratoryFields(body, *laboratory, false, error)) {
+                    sendApiError(res, 400, error);
+                    return;
+                }
+                if (!validateLaboratory(*laboratory, laboratories, laboratoryId, error)) {
+                    sendApiError(res, 409, error);
+                    return;
+                }
+                if (!Storage::save<Laboratory>(laboratoriesFile, laboratories)) {
+                    sendApiError(res, 500, "Unable to save laboratory data");
+                    return;
+                }
+                res.set_content(json{{"message", "Laboratory updated"}}.dump(), "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to update laboratory data: ") + error.what());
+            }
+        });
+
+    svr.Delete(R"(/api/laboratories/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            try {
+                std::lock_guard<std::mutex> lock(laboratoryMutex);
+                auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+                auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+                const auto previousLaboratories = laboratories;
+                const auto previousComputers = computers;
+                const std::string laboratoryId = req.matches[1];
+                const auto originalSize = laboratories.size();
+                laboratories.erase(std::remove_if(laboratories.begin(), laboratories.end(),
+                    [&](const Laboratory& laboratory) { return laboratory.id == laboratoryId; }),
+                    laboratories.end());
+                if (laboratories.size() == originalSize) {
+                    sendApiError(res, 404, "Laboratory not found");
+                    return;
+                }
+                computers.erase(std::remove_if(computers.begin(), computers.end(),
+                    [&](const Computer& computer) { return computer.lab_id == laboratoryId; }),
+                    computers.end());
+                updateLaboratoryComputerCounts(laboratories, computers);
+                std::string error;
+                if (!saveLaboratoryInventory(laboratories, computers,
+                                             previousLaboratories, previousComputers, error)) {
+                    sendApiError(res, 500, error);
+                    return;
+                }
+                res.set_content(json{{"message", "Laboratory and its computers deleted"}}.dump(),
+                                "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to delete laboratory: ") + error.what());
+            }
+        });
+
+    svr.Get("/api/computers", [](const httplib::Request& req, httplib::Response& res) {
+        if (!verifyAuth(req, res, "admin")) return;
+        try {
+            std::lock_guard<std::mutex> lock(laboratoryMutex);
+            auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+            if (req.has_param("lab_id")) {
+                const auto laboratoryId = req.get_param_value("lab_id");
+                computers.erase(std::remove_if(computers.begin(), computers.end(),
+                    [&](const Computer& computer) { return computer.lab_id != laboratoryId; }),
+                    computers.end());
+            }
+            res.set_content(json(computers).dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read computer data: ") + error.what());
+        }
+    });
+
+    svr.Post("/api/computers", [](const httplib::Request& req, httplib::Response& res) {
+        if (!verifyAuth(req, res, "admin")) return;
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (const json::exception&) {
+            sendApiError(res, 400, "Invalid JSON");
+            return;
+        }
+        if (!body.is_object()) {
+            sendApiError(res, 400, "Request body must be a JSON object");
+            return;
+        }
+
+        try {
+            std::lock_guard<std::mutex> lock(laboratoryMutex);
+            auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+            const auto previousComputers = computers;
+            Computer computer;
+            std::string error;
+            if (!applyComputerFields(body, computer, true, error)) {
+                sendApiError(res, 400, error);
+                return;
+            }
+            const bool laboratoryExists = std::any_of(laboratories.begin(), laboratories.end(),
+                [&](const Laboratory& laboratory) { return laboratory.id == computer.lab_id; });
+            if (!laboratoryExists) {
+                sendApiError(res, 400, "lab_id does not identify an existing laboratory");
+                return;
+            }
+            if (!validateComputer(computer, computers, "", error)) {
+                sendApiError(res, 409, error);
+                return;
+            }
+            do {
+                computer.id = Storage::generateId("pc-");
+            } while (std::any_of(computers.begin(), computers.end(), [&](const Computer& other) {
+                return other.id == computer.id;
+            }));
+            computers.push_back(computer);
+            const auto previousLaboratories = laboratories;
+            updateLaboratoryComputerCounts(laboratories, computers);
+            if (!saveLaboratoryInventory(laboratories, computers,
+                                         previousLaboratories, previousComputers, error)) {
+                sendApiError(res, 500, error);
+                return;
+            }
+            res.status = 201;
+            res.set_content(json{{"message", "Computer added"}, {"id", computer.id}}.dump(),
+                            "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to add computer: ") + error.what());
+        }
+    });
+
+    svr.Put(R"(/api/computers/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            json body;
+            try {
+                body = json::parse(req.body);
+            } catch (const json::exception&) {
+                sendApiError(res, 400, "Invalid JSON");
+                return;
+            }
+            if (!body.is_object()) {
+                sendApiError(res, 400, "Request body must be a JSON object");
+                return;
+            }
+
+            try {
+                std::lock_guard<std::mutex> lock(laboratoryMutex);
+                const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+                auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+                const auto previousComputers = computers;
+                const std::string computerId = req.matches[1];
+                auto computer = std::find_if(computers.begin(), computers.end(),
+                    [&](const Computer& item) { return item.id == computerId; });
+                if (computer == computers.end()) {
+                    sendApiError(res, 404, "Computer not found");
+                    return;
+                }
+                std::string error;
+                if (!applyComputerFields(body, *computer, false, error)) {
+                    sendApiError(res, 400, error);
+                    return;
+                }
+                const bool laboratoryExists = std::any_of(laboratories.begin(), laboratories.end(),
+                    [&](const Laboratory& laboratory) { return laboratory.id == computer->lab_id; });
+                if (!laboratoryExists) {
+                    sendApiError(res, 400, "lab_id does not identify an existing laboratory");
+                    return;
+                }
+                if (!validateComputer(*computer, computers, computerId, error)) {
+                    sendApiError(res, 409, error);
+                    return;
+                }
+                auto updatedLaboratories = laboratories;
+                updateLaboratoryComputerCounts(updatedLaboratories, computers);
+                const auto previousLaboratories = laboratories;
+                if (!saveLaboratoryInventory(updatedLaboratories, computers,
+                                             previousLaboratories, previousComputers, error)) {
+                    sendApiError(res, 500, error);
+                    return;
+                }
+                res.set_content(json{{"message", "Computer updated"}}.dump(), "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to update computer: ") + error.what());
+            }
+        });
+
+    svr.Delete(R"(/api/computers/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            try {
+                std::lock_guard<std::mutex> lock(laboratoryMutex);
+                auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+                auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+                const auto previousComputers = computers;
+                const auto previousLaboratories = laboratories;
+                const std::string computerId = req.matches[1];
+                const auto originalSize = computers.size();
+                computers.erase(std::remove_if(computers.begin(), computers.end(),
+                    [&](const Computer& computer) { return computer.id == computerId; }),
+                    computers.end());
+                if (computers.size() == originalSize) {
+                    sendApiError(res, 404, "Computer not found");
+                    return;
+                }
+                updateLaboratoryComputerCounts(laboratories, computers);
+                std::string error;
+                if (!saveLaboratoryInventory(laboratories, computers,
+                                             previousLaboratories, previousComputers, error)) {
+                    sendApiError(res, 500, error);
+                    return;
+                }
+                res.set_content(json{{"message", "Computer deleted"}}.dump(), "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to delete computer: ") + error.what());
+            }
+        });
 
     // Public classroom search; availability is calculated from current server-side records.
     svr.Get("/api/student/classrooms", [](const httplib::Request& req, httplib::Response& res) {

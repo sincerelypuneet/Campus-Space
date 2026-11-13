@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusSpace Admin – Computer Laboratories</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/admin-labs.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="admin">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace Admin – Computer Laboratories</h1>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+        <section class="card">
+            <h2 class="card-title">Laboratory Management</h2>
+            <p>Create and update laboratories, their location, administrator, category, and operational status.</p>
+            <p id="lab-message" class="form-message" role="status" aria-live="polite"></p>
+            <form id="lab-form" class="classroom-form">
+                <h3 id="lab-form-title">Add Laboratory</h3>
+                <label for="lab-name">Laboratory name</label>
+                <input id="lab-name" name="name" class="input-field" type="text" maxlength="100" required>
+                <label for="lab-building">Building</label>
+                <input id="lab-building" name="building" class="input-field" type="text" maxlength="80" required>
+                <div class="schedule-time-fields">
+                    <div>
+                        <label for="lab-floor">Floor</label>
+                        <input id="lab-floor" name="floor" class="input-field" type="number" min="0" step="1" required>
+                    </div>
+                    <div>
+                        <label for="lab-room-number">Room number</label>
+                        <input id="lab-room-number" name="room_number" class="input-field" type="text" maxlength="40" required>
+                    </div>
+                </div>
+                <div class="schedule-time-fields">
+                    <div>
+                        <label for="lab-category">Lab category</label>
+                        <select id="lab-category" name="category" class="input-field" required>
+                            <option value="LPC">LPC</option>
+                            <option value="HPC">HPC</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="lab-status">Operational status</label>
+                        <select id="lab-status" name="operational_status" class="input-field" required>
+                            <option value="operational">Operational</option>
+                            <option value="maintenance">Under maintenance</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <label for="lab-administrator">Lab administrator</label>
+                <input id="lab-administrator" name="lab_administrator" class="input-field" type="text" maxlength="100" required>
+                <div class="schedule-dialog-actions">
+                    <button class="btn-secondary" type="button" id="cancel-lab-edit" hidden>Cancel edit</button>
+                    <button class="btn-primary" type="submit" id="save-lab">Save Laboratory</button>
+                </div>
+            </form>
+        </section>
+        <section class="card">
+            <h2 class="card-title">Laboratories</h2>
+            <div id="laboratory-list" aria-live="polite"></div>
+        </section>
+        <section class="card">
+            <h2 class="card-title">Computer Management</h2>
+            <p>Add computers, update their specifications, and set their current operational status.</p>
+            <form id="computer-form" class="classroom-form">
+                <h3 id="computer-form-title">Add Computer</h3>
+                <label for="computer-lab">Laboratory</label>
+                <select id="computer-lab" name="lab_id" class="input-field" required></select>
+                <label for="computer-number">Computer number</label>
+                <input id="computer-number" name="computer_number" class="input-field" type="number" min="1" step="1" required>
+                <label for="computer-specifications">Computer specifications</label>
+                <textarea id="computer-specifications" name="specifications" class="input-field" maxlength="500" rows="3" required></textarea>
+                <label for="computer-status">Operational status</label>
+                <select id="computer-status" name="operational_status" class="input-field" required>
+                    <option value="available">Available</option>
+                    <option value="occupied">Occupied</option>
+                    <option value="maintenance">Under maintenance</option>
+                </select>
+                <div class="schedule-dialog-actions">
+                    <button class="btn-secondary" type="button" id="cancel-computer-edit" hidden>Cancel edit</button>
+                    <button class="btn-primary" type="submit" id="save-computer">Add Computer</button>
+                </div>
+            </form>
+            <h3>Computers</h3>
+            <div id="computer-list" aria-live="polite"></div>
+        </section>
+    </main>
+</body>
+</html>
