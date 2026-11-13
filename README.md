@@ -24,3 +24,10 @@ Administrators can add, edit, and delete classrooms at
 `http://localhost:8080/admin-classrooms.html`. Classroom records are stored in
 `BACKEND/data/classrooms.json` and persist across server restarts. Rooms are unique by
 building, floor, and room number.
+
+Students can search teacher availability at `http://localhost:8080/student-teacher.html`
+after signing in through the student demo login. The read-only student endpoint uses
+teacher records and saved timetable entries; optional `working_days`, `working_start`,
+and `working_end` teacher fields define working hours. When working hours are not
+configured, availability is limited to the span of that teacher's scheduled classes
+for the selected day rather than assuming a campus-wide timetable.

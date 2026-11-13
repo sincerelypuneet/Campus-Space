@@ -771,6 +771,32 @@ int main() {
         }
     });
 
+    // Public, read-only data used by the student teacher availability search.
+    svr.Get("/api/student/teachers", [](const httplib::Request&, httplib::Response& res) {
+        try {
+            std::lock_guard<std::mutex> lock(timetableMutex);
+            const auto teachers = Storage::load<Teacher>("data/teachers.json");
+            const auto entries = loadTimetableEntries();
+            json result = {{"teachers", json::array()}, {"timetables", json(entries)}};
+            for (const auto& teacher : teachers) {
+                if (teacher.status == "inactive") continue;
+                result["teachers"].push_back({
+                    {"id", teacher.id},
+                    {"name", teacher.name},
+                    {"department", teacher.department},
+                    {"designation", teacher.designation},
+                    {"subjects", teacher.subjects},
+                    {"working_days", teacher.working_days},
+                    {"working_start", teacher.working_start},
+                    {"working_end", teacher.working_end}
+                });
+            }
+            res.set_content(result.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read teacher availability data: ") + error.what());
+        }
+    });
+
     // List all teachers
     svr.Get("/api/teachers", [](const httplib::Request& req, httplib::Response& res) {
         if (!verifyAuth(req, res, "admin")) return;
@@ -825,6 +851,8 @@ int main() {
         if (body.contains("email")) newTeacher.email = body["email"].get<std::string>();
         if (body.contains("assigned_classrooms")) newTeacher.assigned_classrooms = body["assigned_classrooms"].get<std::vector<std::string>>();
         if (body.contains("working_days")) newTeacher.working_days = body["working_days"].get<std::vector<std::string>>();
+        if (body.contains("working_start")) newTeacher.working_start = body["working_start"].get<std::string>();
+        if (body.contains("working_end")) newTeacher.working_end = body["working_end"].get<std::string>();
         newTeacher.status = body.value("status", "active");
         // Append and persist
         Storage::append<Teacher>("data/teachers.json", newTeacher);
@@ -860,6 +888,8 @@ int main() {
                 if (body.contains("email")) t.email = body["email"].get<std::string>();
                 if (body.contains("assigned_classrooms")) t.assigned_classrooms = body["assigned_classrooms"].get<std::vector<std::string>>();
                 if (body.contains("working_days")) t.working_days = body["working_days"].get<std::vector<std::string>>();
+                if (body.contains("working_start")) t.working_start = body["working_start"].get<std::string>();
+                if (body.contains("working_end")) t.working_end = body["working_end"].get<std::string>();
                 if (body.contains("status")) t.status = body["status"].get<std::string>();
                 found = true;
                 break;

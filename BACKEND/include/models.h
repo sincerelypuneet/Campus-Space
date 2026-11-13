@@ -21,6 +21,8 @@ struct Teacher {
     std::string email;
     std::vector<std::string> assigned_classrooms;
     std::vector<std::string> working_days; // e.g., ["Monday","Tuesday"]
+    std::string working_start; // optional HH:MM availability boundary
+    std::string working_end; // optional HH:MM availability boundary
     std::string status; // "active" or "inactive"
 };
 
@@ -90,7 +92,7 @@ namespace nlohmann {
     };
     template <> struct adl_serializer<Teacher> {
         static void to_json(json& j, const Teacher& t) {
-            j = json{{"id", t.id}, {"name", t.name}, {"employee_id", t.employee_id}, {"department", t.department}, {"designation", t.designation}, {"subjects", t.subjects}, {"email", t.email}, {"assigned_classrooms", t.assigned_classrooms}, {"working_days", t.working_days}, {"status", t.status}};
+            j = json{{"id", t.id}, {"name", t.name}, {"employee_id", t.employee_id}, {"department", t.department}, {"designation", t.designation}, {"subjects", t.subjects}, {"email", t.email}, {"assigned_classrooms", t.assigned_classrooms}, {"working_days", t.working_days}, {"working_start", t.working_start}, {"working_end", t.working_end}, {"status", t.status}};
         }
         static void from_json(const json& j, Teacher& t) {
             j.at("id").get_to(t.id);
@@ -102,6 +104,8 @@ namespace nlohmann {
             if (j.contains("email")) j.at("email").get_to(t.email);
             if (j.contains("assigned_classrooms")) j.at("assigned_classrooms").get_to(t.assigned_classrooms);
             if (j.contains("working_days")) j.at("working_days").get_to(t.working_days);
+            if (j.contains("working_start")) j.at("working_start").get_to(t.working_start);
+            if (j.contains("working_end")) j.at("working_end").get_to(t.working_end);
             if (j.contains("status")) j.at("status").get_to(t.status);
         }
     };

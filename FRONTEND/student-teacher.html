@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusSpace – Find a Teacher</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/student-teacher.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="student">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace – Find a Teacher</h1>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+        <section class="card">
+            <h2 class="card-title">Find a Teacher</h2>
+            <p>Search teacher availability using the current timetable and configured working hours.</p>
+            <p>Timetable schedules repeat weekly; the date filter uses the date’s weekday.</p>
+            <form id="teacher-search-form" class="teacher-search-form">
+                <div>
+                    <label for="teacher-name">Teacher name</label>
+                    <input id="teacher-name" class="input-field" type="search" placeholder="Search by name"/>
+                </div>
+                <div>
+                    <label for="teacher-department">Department</label>
+                    <select id="teacher-department" class="input-field">
+                        <option value="">All departments</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="teacher-subject">Subject</label>
+                    <input id="teacher-subject" class="input-field" type="search" placeholder="e.g. Mathematics"/>
+                </div>
+                <div>
+                    <label for="teacher-date">Date</label>
+                    <input id="teacher-date" class="input-field" type="date"/>
+                </div>
+                <div>
+                    <label for="teacher-day">Day</label>
+                    <select id="teacher-day" class="input-field">
+                        <option value="">Choose day</option>
+                        <option>Monday</option>
+                        <option>Tuesday</option>
+                        <option>Wednesday</option>
+                        <option>Thursday</option>
+                        <option>Friday</option>
+                        <option>Saturday</option>
+                        <option>Sunday</option>
+                    </select>
+                </div>
+                <div class="teacher-time-range">
+                    <div>
+                        <label for="teacher-start">Preferred start time</label>
+                        <input id="teacher-start" class="input-field" type="time"/>
+                    </div>
+                    <div>
+                        <label for="teacher-end">Preferred end time</label>
+                        <input id="teacher-end" class="input-field" type="time"/>
+                    </div>
+                </div>
+                <div class="teacher-search-actions">
+                    <button class="btn-primary" type="submit">Search Teachers</button>
+                    <button class="btn-secondary" type="reset">Clear</button>
+                </div>
+            </form>
+            <p id="teacher-search-message" class="form-message" role="status" aria-live="polite"></p>
+        </section>
+        <section class="card">
+            <h2 class="card-title">Matching Teachers</h2>
+            <div id="teacher-results" aria-live="polite"></div>
+        </section>
+    </main>
+    <dialog class="schedule-dialog teacher-profile-dialog" id="teacher-profile" aria-labelledby="teacher-profile-title">
+        <div>
+            <h2 id="teacher-profile-title">Teacher Profile</h2>
+            <div id="teacher-profile-content"></div>
+            <div class="schedule-dialog-actions">
+                <button class="btn-secondary" type="button" id="close-teacher-profile">Close</button>
+            </div>
+        </div>
+    </dialog>
+</body>
+</html>
