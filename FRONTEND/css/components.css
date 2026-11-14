@@ -396,6 +396,46 @@ label {
 .teacher-profile-day {
     margin: var(--space-md) 0;
 }
+.lpc-booking-form {
+    display: grid;
+    gap: 0 var(--space-md);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 760px;
+}
+.lpc-booking-actions {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    padding-bottom: var(--space-sm);
+}
+.lpc-booking-form textarea {
+    min-height: 5rem;
+    resize: vertical;
+}
+.hpc-form-actions {
+    margin: var(--space-sm) 0;
+}
+.hpc-review-panel {
+    border-top: 1px solid var(--color-muted);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+}
+.hpc-review-panel dl {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.3fr) minmax(0, 1fr);
+    gap: var(--space-xs) var(--space-sm);
+}
+.hpc-review-panel dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+.hpc-review-panel dt {
+    font-weight: var(--font-weight-bold);
+}
+.form-message.success {
+    color: var(--color-success);
+}
 .classroom-search-form {
     display: grid;
     gap: 0 var(--space-md);
@@ -449,6 +489,16 @@ label {
     }
     .teacher-time-range {
         grid-column: auto;
+    }
+    .lpc-booking-form {
+        grid-template-columns: 1fr;
+    }
+    .hpc-review-panel dl {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+    .hpc-review-panel dd {
+        margin-bottom: var(--space-xs);
     }
     .classroom-search-form {
         grid-template-columns: 1fr;

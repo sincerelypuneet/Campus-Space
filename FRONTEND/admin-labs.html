@@ -94,6 +94,31 @@
             <h3>Computers</h3>
             <div id="computer-list" aria-live="polite"></div>
         </section>
+        <section class="card">
+            <h2 class="card-title">HPC Booking Requests</h2>
+            <p>Review student requests, select an available computer, and approve or reject them. Pending requests do not reserve computers.</p>
+            <p id="hpc-request-message" class="form-message" role="status" aria-live="polite"></p>
+            <div id="hpc-request-list" aria-live="polite"></div>
+            <section id="hpc-review-panel" class="hpc-review-panel" aria-labelledby="hpc-review-title" hidden>
+                <h3 id="hpc-review-title">Request details</h3>
+                <dl id="hpc-request-details"></dl>
+                <div id="hpc-computer-selection">
+                    <label for="hpc-computer">Computer to assign</label>
+                    <select id="hpc-computer" class="input-field"></select>
+                </div>
+                <div id="hpc-rejection-field">
+                    <label for="hpc-rejection-reason">Rejection reason (optional)</label>
+                    <textarea id="hpc-rejection-reason" class="input-field" maxlength="500" rows="3"></textarea>
+                </div>
+                <p id="hpc-availability-message" class="form-message" role="status" aria-live="polite"></p>
+                <div class="schedule-dialog-actions">
+                    <button class="btn-primary" type="button" id="hpc-approve" disabled>Approve request</button>
+                    <button class="btn-secondary" type="button" id="hpc-reject" disabled>Reject request</button>
+                    <button class="btn-primary" type="button" id="hpc-complete" hidden>Mark completed</button>
+                    <button class="btn-secondary" type="button" id="hpc-review-close">Close details</button>
+                </div>
+            </section>
+        </section>
     </main>
 </body>
 </html>

@@ -22,6 +22,7 @@ const MENU_CONFIG = {
         { label: 'Find Teacher', icon: '🧑‍🏫', href: 'student-teacher.html' },
         { label: 'Find Classroom', icon: '🏫', href: 'student-classroom.html' },
         { label: 'Computer Labs', icon: '💻', href: 'student-labs.html' },
+        { label: 'HPC Requests', icon: '🖥️', href: 'student-hpc.html' },
         { label: 'My Bookings', icon: '📑', href: 'student-bookings.html' },
         { label: 'Logout', icon: '🚪', href: 'student-login.html', onClick: () => {
             sessionStorage.removeItem('studentAuthenticated');

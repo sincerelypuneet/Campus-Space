@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusSpace – LPC Computer Booking</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/student-labs.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="student">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace – LPC Computer Booking</h1>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+        <section class="card">
+            <h2 class="card-title">Book an LPC Computer</h2>
+            <p>Choose an operational LPC lab and time to check live computer availability.</p>
+            <form id="lpc-booking-form" class="lpc-booking-form">
+                <div>
+                    <label for="lpc-student-name">Student name or ID</label>
+                    <input id="lpc-student-name" name="student_name" class="input-field" type="text" maxlength="120" required/>
+                </div>
+                <div>
+                    <label for="lpc-laboratory">LPC laboratory</label>
+                    <select id="lpc-laboratory" name="lab_id" class="input-field" required>
+                        <option value="">Loading laboratories…</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="lpc-date">Booking date</label>
+                    <input id="lpc-date" name="date" class="input-field" type="date" required/>
+                </div>
+                <div class="schedule-time-fields">
+                    <div>
+                        <label for="lpc-start">Start time</label>
+                        <input id="lpc-start" name="start" class="input-field" type="time" required/>
+                    </div>
+                    <div>
+                        <label for="lpc-end">End time</label>
+                        <input id="lpc-end" name="end" class="input-field" type="time" required/>
+                    </div>
+                </div>
+                <div>
+                    <label for="lpc-purpose">Purpose</label>
+                    <textarea id="lpc-purpose" name="purpose" class="input-field" maxlength="500" required></textarea>
+                </div>
+                <div>
+                    <label for="lpc-computer">Available computer</label>
+                    <select id="lpc-computer" name="computer_id" class="input-field" disabled>
+                        <option value="">Check availability to list computers</option>
+                    </select>
+                </div>
+                <div class="lpc-booking-actions">
+                    <button class="btn-secondary" type="submit" id="lpc-check-availability">Check availability</button>
+                    <button class="btn-primary" type="button" id="lpc-confirm-booking" disabled>Confirm booking</button>
+                </div>
+            </form>
+            <p id="lpc-booking-message" class="form-message" role="status" aria-live="polite"></p>
+        </section>
+    </main>
+</body>
+</html>

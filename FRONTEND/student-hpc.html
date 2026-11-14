@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusSpace – HPC Booking Requests</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/components.css">
+    <script src="js/app.js" defer></script>
+    <script src="js/student-hpc.js" defer></script>
+    <script src="js/nav.js" defer></script>
+</head>
+<body data-role="student">
+    <header class="app-header">
+        <img src="assets/images/logo.svg" alt="CampusSpace Logo" class="logo"/>
+        <h1 class="title">CampusSpace – HPC Booking Requests</h1>
+        <button class="toggle-btn" type="button" onclick="toggleSidebar()" aria-label="Toggle navigation">☰</button>
+    </header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+        <section class="card">
+            <h2 class="card-title">Request an HPC Computer</h2>
+            <p>HPC computer access requires administrator approval. A pending request does not reserve a computer.</p>
+            <form id="hpc-request-form" class="lpc-booking-form">
+                <div>
+                    <label for="hpc-student-name">Student name or ID</label>
+                    <input id="hpc-student-name" name="student_name" class="input-field" type="text" maxlength="120" required>
+                </div>
+                <div>
+                    <label for="hpc-laboratory">HPC laboratory</label>
+                    <select id="hpc-laboratory" name="lab_id" class="input-field" required>
+                        <option value="">Loading laboratories…</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="hpc-date">Required date</label>
+                    <input id="hpc-date" name="date" class="input-field" type="date" required>
+                </div>
+                <div class="schedule-time-fields">
+                    <div>
+                        <label for="hpc-start">Start time</label>
+                        <input id="hpc-start" name="start" class="input-field" type="time" required>
+                    </div>
+                    <div>
+                        <label for="hpc-end">End time</label>
+                        <input id="hpc-end" name="end" class="input-field" type="time" required>
+                    </div>
+                </div>
+                <div>
+                    <label for="hpc-purpose">Purpose</label>
+                    <textarea id="hpc-purpose" name="purpose" class="input-field" maxlength="500" required></textarea>
+                </div>
+                <div class="hpc-form-actions">
+                    <button class="btn-primary" type="submit" id="hpc-submit">Submit request</button>
+                </div>
+            </form>
+            <p id="hpc-form-message" class="form-message" role="status" aria-live="polite"></p>
+        </section>
+        <section class="card">
+            <h2 class="card-title">My HPC Requests</h2>
+            <p id="hpc-notification" class="form-message" role="status" aria-live="polite"></p>
+            <div id="hpc-my-requests" aria-live="polite">Loading your requests…</div>
+        </section>
+    </main>
+</body>
+</html>

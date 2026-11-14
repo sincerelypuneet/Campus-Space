@@ -7,9 +7,12 @@
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
+#include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <mutex>
+#include <sstream>
 #include <stdexcept>
 
 #include <bcrypt/BCrypt.hpp>
@@ -22,10 +25,12 @@ const std::string classroomBookingFile = "data/classroom_bookings.json";
 const std::string maintenanceFile = "data/maintenance.json";
 const std::string laboratoriesFile = "data/laboratories.json";
 const std::string computersFile = "data/computers.json";
+const std::string bookingsFile = "data/bookings.json";
 std::mutex timetableMutex;
 std::mutex classroomMutex;
 std::mutex classroomBookingMutex;
 std::mutex laboratoryMutex;
+std::mutex lpcBookingMutex;
 const std::vector<std::string> weekDays = {
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
 };
@@ -176,6 +181,42 @@ bool overlaps(const std::string& startValue, const std::string& endValue,
     int end = 0;
     if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) return true;
     return requestedStart < end && start < requestedEnd;
+}
+
+bool bookingBlocksComputer(const json& booking, const std::string& computerId,
+                           const std::string& date, int requestedStart, int requestedEnd) {
+    if (!booking.is_object() || booking.value("computer_id", "") != computerId) return false;
+    const std::string status = booking.value("status", "confirmed");
+    if (status != "confirmed" && status != "approved" &&
+        status != "active") return false;
+    if (booking.value("date", "") != date) return false;
+    return overlaps(booking.value("start", ""), booking.value("end", ""),
+                    requestedStart, requestedEnd);
+}
+
+bool laboratoryAcceptsHpcRequests(const Laboratory& laboratory) {
+    return equalsIgnoreCase(laboratory.category, "HPC") &&
+        equalsIgnoreCase(laboratory.operational_status, "operational") &&
+        !laboratory.maintenance;
+}
+
+bool laboratoryAcceptsLpcBookings(const Laboratory& laboratory) {
+    return equalsIgnoreCase(laboratory.category, "LPC") &&
+        equalsIgnoreCase(laboratory.operational_status, "operational") &&
+        !laboratory.maintenance;
+}
+
+std::string utcTimestamp() {
+    const std::time_t now = std::time(nullptr);
+    std::tm utc{};
+#ifdef _WIN32
+    gmtime_s(&utc, &now);
+#else
+    gmtime_r(&now, &utc);
+#endif
+    std::ostringstream result;
+    result << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+    return result.str();
 }
 
 bool roomIsAvailable(const Classroom& classroom, const std::string& date,
@@ -803,7 +844,11 @@ int main() {
         auto classrooms = Storage::load<Classroom>("data/classrooms.json");
         auto labs = Storage::load<Laboratory>("data/laboratories.json");
         auto computers = Storage::load<Computer>("data/computers.json");
-        auto bookings = Storage::load<Booking>("data/bookings.json");
+        std::vector<Booking> bookings;
+        {
+            std::lock_guard<std::mutex> bookingLock(lpcBookingMutex);
+            bookings = Storage::load<Booking>(bookingsFile);
+        }
         auto timetables = loadTimetableEntries();
         // Totals
         result["totals"]["teachers"] = teachers.size();
@@ -841,7 +886,7 @@ int main() {
         // Pending HPC requests – list pending bookings
         json pendingHPC = json::array();
         for (const auto& b : bookings) {
-            if (b.status == "pending") pendingHPC.push_back(b);
+            if (b.type == "HPC" && b.status == "pending") pendingHPC.push_back(b);
         }
         result["pendingHPC"] = pendingHPC;
         // Availability summary – free computers per lab
@@ -1441,6 +1486,647 @@ int main() {
                 sendApiError(res, 500, std::string("Unable to delete computer: ") + error.what());
             }
         });
+
+    // Student HPC requests remain unassigned until an administrator approves them.
+    svr.Get("/api/student/hpc/laboratories", [](const httplib::Request&, httplib::Response& res) {
+        try {
+            std::lock_guard<std::mutex> inventoryLock(laboratoryMutex);
+            const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            json result = json::array();
+            for (const auto& laboratory : laboratories) {
+                if (!laboratoryAcceptsHpcRequests(laboratory)) continue;
+                result.push_back({
+                    {"id", laboratory.id},
+                    {"name", laboratory.name},
+                    {"building", laboratory.building},
+                    {"room_number", laboratory.room_number}
+                });
+            }
+            res.set_content(json{{"laboratories", result}}.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read HPC laboratories: ") + error.what());
+        }
+    });
+
+    svr.Post("/api/student/hpc-requests", [](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (const json::exception&) {
+            sendApiError(res, 400, "Invalid JSON");
+            return;
+        }
+        if (!body.is_object()) {
+            sendApiError(res, 400, "Request body must be a JSON object");
+            return;
+        }
+        for (const auto& field : {"student_name", "lab_id", "date", "start", "end", "purpose"}) {
+            if (!body.contains(field) || !body[field].is_string() ||
+                trim(body[field].get<std::string>()).empty()) {
+                sendApiError(res, 400, std::string(field) + " is required");
+                return;
+            }
+        }
+
+        const std::string studentName = trim(body["student_name"].get<std::string>());
+        const std::string laboratoryId = trim(body["lab_id"].get<std::string>());
+        const std::string date = trim(body["date"].get<std::string>());
+        const std::string startValue = trim(body["start"].get<std::string>());
+        const std::string endValue = trim(body["end"].get<std::string>());
+        const std::string purpose = trim(body["purpose"].get<std::string>());
+        if (studentName.size() > 120 || purpose.size() > 500) {
+            sendApiError(res, 400, "Student name or purpose exceeds the maximum length");
+            return;
+        }
+        int year = 0, month = 0, day = 0;
+        int start = 0, end = 0;
+        if (!parseDate(date, year, month, day)) {
+            sendApiError(res, 400, "date must be a valid YYYY-MM-DD date");
+            return;
+        }
+        if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) {
+            sendApiError(res, 400, "start and end must be valid 24-hour times, with end after start");
+            return;
+        }
+
+        try {
+            std::unique_lock<std::mutex> inventoryLock(laboratoryMutex, std::defer_lock);
+            std::unique_lock<std::mutex> bookingLock(lpcBookingMutex, std::defer_lock);
+            std::lock(inventoryLock, bookingLock);
+            const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            const auto laboratory = std::find_if(laboratories.begin(), laboratories.end(),
+                [&](const Laboratory& item) { return item.id == laboratoryId; });
+            if (laboratory == laboratories.end() || !laboratoryAcceptsHpcRequests(*laboratory)) {
+                sendApiError(res, 409, "Select an operational HPC laboratory");
+                return;
+            }
+
+            auto bookings = loadJsonArrayStrict(bookingsFile);
+            std::string requestId;
+            do {
+                requestId = Storage::generateId("hpc-request-");
+            } while (std::any_of(bookings.begin(), bookings.end(), [&](const json& existing) {
+                return existing.is_object() && existing.value("id", "") == requestId;
+            }));
+            const std::string createdAt = utcTimestamp();
+            json request = {
+                {"id", requestId},
+                {"type", "HPC"},
+                {"lab_id", laboratoryId},
+                {"computer_id", ""},
+                {"user_id", studentName},
+                {"student_name", studentName},
+                {"date", date},
+                {"start", startValue},
+                {"end", endValue},
+                {"status", "pending"},
+                {"purpose", purpose},
+                {"created_at", createdAt}
+            };
+            bookings.push_back(request);
+            if (!Storage::save<json>(bookingsFile, bookings.get<std::vector<json>>())) {
+                sendApiError(res, 500, "Unable to save HPC request");
+                return;
+            }
+            res.status = 201;
+            res.set_content(json{
+                {"message", "HPC request submitted and pending administrator approval"},
+                {"request", request},
+                {"laboratory", laboratory->name}
+            }.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to submit HPC request: ") + error.what());
+        }
+    });
+
+    svr.Get("/api/student/hpc-requests", [](const httplib::Request& req, httplib::Response& res) {
+        const std::string studentName = trim(req.get_param_value("student_name"));
+        if (studentName.empty()) {
+            sendApiError(res, 400, "student_name is required");
+            return;
+        }
+        try {
+            std::lock_guard<std::mutex> bookingLock(lpcBookingMutex);
+            const auto bookings = loadJsonArrayStrict(bookingsFile);
+            json requests = json::array();
+            for (const auto& booking : bookings) {
+                if (!booking.is_object() || booking.value("type", "") != "HPC") continue;
+                const std::string owner = booking.value(
+                    "student_name", booking.value("user_id", ""));
+                if (equalsIgnoreCase(trim(owner), studentName)) requests.push_back(booking);
+            }
+            res.set_content(json{{"requests", requests}}.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read HPC request status: ") + error.what());
+        }
+    });
+
+    svr.Put(R"(/api/student/hpc-requests/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            json body;
+            try {
+                body = json::parse(req.body);
+            } catch (const json::exception&) {
+                sendApiError(res, 400, "Invalid JSON");
+                return;
+            }
+            if (!body.is_object() || !body.contains("action") || !body["action"].is_string() ||
+                body["action"].get<std::string>() != "cancel" ||
+                !body.contains("student_name") || !body["student_name"].is_string() ||
+                trim(body["student_name"].get<std::string>()).empty()) {
+                sendApiError(res, 400, "A student name and cancel action are required");
+                return;
+            }
+            const std::string studentName = trim(body["student_name"].get<std::string>());
+            try {
+                std::lock_guard<std::mutex> bookingLock(lpcBookingMutex);
+                auto bookings = loadJsonArrayStrict(bookingsFile);
+                const std::string requestId = req.matches[1];
+                auto request = std::find_if(bookings.begin(), bookings.end(), [&](const json& item) {
+                    return item.is_object() && item.value("id", "") == requestId &&
+                        item.value("type", "") == "HPC";
+                });
+                if (request == bookings.end()) {
+                    sendApiError(res, 404, "HPC request not found");
+                    return;
+                }
+                const std::string owner = request->value(
+                    "student_name", request->value("user_id", ""));
+                if (!equalsIgnoreCase(trim(owner), studentName)) {
+                    sendApiError(res, 403, "This HPC request belongs to another student");
+                    return;
+                }
+                const std::string status = request->value("status", "");
+                if (status != "pending" && status != "approved") {
+                    sendApiError(res, 409, "Only pending or approved HPC requests can be cancelled");
+                    return;
+                }
+                (*request)["status"] = "cancelled";
+                (*request)["cancelled_at"] = utcTimestamp();
+                if (!Storage::save<json>(bookingsFile, bookings.get<std::vector<json>>())) {
+                    sendApiError(res, 500, "Unable to cancel HPC request");
+                    return;
+                }
+                res.set_content(json{{"message", "HPC request cancelled"}, {"request", *request}}.dump(),
+                                "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to cancel HPC request: ") + error.what());
+            }
+        });
+
+    // Admin review APIs. Approval and availability checks serialize with all
+    // laboratory/computer changes and other booking decisions.
+    svr.Get("/api/admin/hpc-requests", [](const httplib::Request& req, httplib::Response& res) {
+        if (!verifyAuth(req, res, "admin")) return;
+        try {
+            std::lock_guard<std::mutex> bookingLock(lpcBookingMutex);
+            const auto bookings = loadJsonArrayStrict(bookingsFile);
+            json requests = json::array();
+            for (const auto& booking : bookings) {
+                if (booking.is_object() && booking.value("type", "") == "HPC") {
+                    requests.push_back(booking);
+                }
+            }
+            std::stable_sort(requests.begin(), requests.end(), [](const json& left, const json& right) {
+                const bool leftPending = left.value("status", "") == "pending";
+                const bool rightPending = right.value("status", "") == "pending";
+                if (leftPending != rightPending) return leftPending;
+                return left.value("created_at", "") > right.value("created_at", "");
+            });
+            res.set_content(json{{"requests", requests}}.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read HPC requests: ") + error.what());
+        }
+    });
+
+    svr.Get(R"(/api/admin/hpc-requests/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            try {
+                std::lock_guard<std::mutex> bookingLock(lpcBookingMutex);
+                const auto bookings = loadJsonArrayStrict(bookingsFile);
+                const std::string requestId = req.matches[1];
+                const auto request = std::find_if(bookings.begin(), bookings.end(),
+                    [&](const json& item) {
+                        return item.is_object() && item.value("id", "") == requestId &&
+                            item.value("type", "") == "HPC";
+                    });
+                if (request == bookings.end()) {
+                    sendApiError(res, 404, "HPC request not found");
+                    return;
+                }
+                res.set_content(request->dump(), "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to read HPC request: ") + error.what());
+            }
+        });
+
+    svr.Get(R"(/api/admin/hpc-requests/([a-zA-Z0-9\-]+)/availability)",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            try {
+                std::unique_lock<std::mutex> inventoryLock(laboratoryMutex, std::defer_lock);
+                std::unique_lock<std::mutex> bookingLock(lpcBookingMutex, std::defer_lock);
+                std::lock(inventoryLock, bookingLock);
+                const auto bookings = loadJsonArrayStrict(bookingsFile);
+                const std::string requestId = req.matches[1];
+                const auto request = std::find_if(bookings.begin(), bookings.end(),
+                    [&](const json& item) {
+                        return item.is_object() && item.value("id", "") == requestId &&
+                            item.value("type", "") == "HPC";
+                    });
+                if (request == bookings.end()) {
+                    sendApiError(res, 404, "HPC request not found");
+                    return;
+                }
+                if (request->value("status", "") != "pending") {
+                    sendApiError(res, 409, "Only pending HPC requests can be approved");
+                    return;
+                }
+                const std::string labId = request->value("lab_id", "");
+                const std::string date = request->value("date", "");
+                int year = 0, month = 0, day = 0;
+                int start = 0, end = 0;
+                if (!parseDate(date, year, month, day) ||
+                    !parseTime(request->value("start", ""), start) ||
+                    !parseTime(request->value("end", ""), end) || start >= end) {
+                    sendApiError(res, 400, "HPC request contains an invalid date or time period");
+                    return;
+                }
+                const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+                const auto laboratory = std::find_if(laboratories.begin(), laboratories.end(),
+                    [&](const Laboratory& item) { return item.id == labId; });
+                if (laboratory == laboratories.end() || !laboratoryAcceptsHpcRequests(*laboratory)) {
+                    sendApiError(res, 409, "The requested HPC laboratory is no longer operational");
+                    return;
+                }
+                const auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+                json available = json::array();
+                for (const auto& computer : computers) {
+                    if (computer.lab_id != labId || !equalsIgnoreCase(computer.status, "available")) continue;
+                    const bool conflict = std::any_of(bookings.begin(), bookings.end(),
+                        [&](const json& booking) {
+                            return bookingBlocksComputer(booking, computer.id, date, start, end);
+                        });
+                    if (!conflict) {
+                        available.push_back({
+                            {"id", computer.id},
+                            {"computer_number", computer.computer_number},
+                            {"specifications", computer.specifications}
+                        });
+                    }
+                }
+                res.set_content(json{
+                    {"laboratory", *laboratory},
+                    {"computers", available}
+                }.dump(), "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to check HPC availability: ") + error.what());
+            }
+        });
+
+    svr.Put(R"(/api/admin/hpc-requests/([a-zA-Z0-9\-]+))",
+        [](const httplib::Request& req, httplib::Response& res) {
+            if (!verifyAuth(req, res, "admin")) return;
+            json body;
+            try {
+                body = json::parse(req.body);
+            } catch (const json::exception&) {
+                sendApiError(res, 400, "Invalid JSON");
+                return;
+            }
+            if (!body.is_object() || !body.contains("action") || !body["action"].is_string()) {
+                sendApiError(res, 400, "action must be approve, reject, or complete");
+                return;
+            }
+            const std::string action = body["action"].get<std::string>();
+            if (action != "approve" && action != "reject" && action != "complete") {
+                sendApiError(res, 400, "action must be approve, reject, or complete");
+                return;
+            }
+            std::string computerId;
+            if (action == "approve") {
+                if (!body.contains("computer_id") || !body["computer_id"].is_string() ||
+                    trim(body["computer_id"].get<std::string>()).empty()) {
+                    sendApiError(res, 400, "computer_id is required to approve an HPC request");
+                    return;
+                }
+                computerId = trim(body["computer_id"].get<std::string>());
+            }
+            std::string rejectionReason;
+            if (body.contains("rejection_reason")) {
+                if (!body["rejection_reason"].is_string()) {
+                    sendApiError(res, 400, "rejection_reason must be a string");
+                    return;
+                }
+                rejectionReason = trim(body["rejection_reason"].get<std::string>());
+                if (rejectionReason.size() > 500) {
+                    sendApiError(res, 400, "rejection_reason cannot exceed 500 characters");
+                    return;
+                }
+            }
+
+            const std::string authHeader = req.get_header_value("Authorization");
+            const auto session = AuthManager::validateToken(authHeader.substr(7));
+            if (!session) {
+                sendApiError(res, 401, "Invalid or expired token");
+                return;
+            }
+            const std::string administratorId = session->user_id;
+
+            try {
+                std::unique_lock<std::mutex> inventoryLock(laboratoryMutex, std::defer_lock);
+                std::unique_lock<std::mutex> bookingLock(lpcBookingMutex, std::defer_lock);
+                std::lock(inventoryLock, bookingLock);
+                auto bookings = loadJsonArrayStrict(bookingsFile);
+                const std::string requestId = req.matches[1];
+                auto request = std::find_if(bookings.begin(), bookings.end(),
+                    [&](const json& item) {
+                        return item.is_object() && item.value("id", "") == requestId &&
+                            item.value("type", "") == "HPC";
+                    });
+                if (request == bookings.end()) {
+                    sendApiError(res, 404, "HPC request not found");
+                    return;
+                }
+                const std::string status = request->value("status", "");
+                const std::string updatedAt = utcTimestamp();
+                if (action == "approve") {
+                    if (status != "pending") {
+                        sendApiError(res, 409, "Only pending HPC requests can be approved");
+                        return;
+                    }
+                    const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+                    const std::string labId = request->value("lab_id", "");
+                    const auto laboratory = std::find_if(laboratories.begin(), laboratories.end(),
+                        [&](const Laboratory& item) { return item.id == labId; });
+                    if (laboratory == laboratories.end() || !laboratoryAcceptsHpcRequests(*laboratory)) {
+                        sendApiError(res, 409, "The requested HPC laboratory is no longer operational");
+                        return;
+                    }
+                    int year = 0, month = 0, day = 0;
+                    int start = 0, end = 0;
+                    const std::string date = request->value("date", "");
+                    if (!parseDate(date, year, month, day) ||
+                        !parseTime(request->value("start", ""), start) ||
+                        !parseTime(request->value("end", ""), end) || start >= end) {
+                        sendApiError(res, 400, "HPC request contains an invalid date or time period");
+                        return;
+                    }
+                    const auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+                    const auto computer = std::find_if(computers.begin(), computers.end(),
+                        [&](const Computer& item) {
+                            return item.id == computerId && item.lab_id == labId;
+                        });
+                    if (computer == computers.end()) {
+                        sendApiError(res, 404, "Selected computer does not belong to the requested laboratory");
+                        return;
+                    }
+                    if (!equalsIgnoreCase(computer->status, "available")) {
+                        sendApiError(res, 409, "Selected computer is under maintenance or otherwise unavailable");
+                        return;
+                    }
+                    const bool conflict = std::any_of(bookings.begin(), bookings.end(),
+                        [&](const json& booking) {
+                            return bookingBlocksComputer(booking, computerId, date, start, end);
+                        });
+                    if (conflict) {
+                        sendApiError(res, 409, "Selected computer is already booked for an overlapping period");
+                        return;
+                    }
+                    (*request)["status"] = "approved";
+                    (*request)["computer_id"] = computerId;
+                    (*request)["approved_by"] = administratorId;
+                    (*request)["approval_timestamp"] = updatedAt;
+                    (*request)["reviewed_by"] = administratorId;
+                    (*request)["reviewed_at"] = updatedAt;
+                    (*request).erase("rejection_reason");
+                } else if (action == "reject") {
+                    if (status != "pending") {
+                        sendApiError(res, 409, "Only pending HPC requests can be rejected");
+                        return;
+                    }
+                    (*request)["status"] = "rejected";
+                    (*request)["reviewed_by"] = administratorId;
+                    (*request)["reviewed_at"] = updatedAt;
+                    if (rejectionReason.empty()) (*request).erase("rejection_reason");
+                    else (*request)["rejection_reason"] = rejectionReason;
+                } else {
+                    if (status != "approved") {
+                        sendApiError(res, 409, "Only approved HPC requests can be marked completed");
+                        return;
+                    }
+                    (*request)["status"] = "completed";
+                    (*request)["completed_at"] = updatedAt;
+                    (*request)["reviewed_by"] = administratorId;
+                    (*request)["reviewed_at"] = updatedAt;
+                }
+
+                if (!Storage::save<json>(bookingsFile, bookings.get<std::vector<json>>())) {
+                    sendApiError(res, 500, "Unable to save HPC request status");
+                    return;
+                }
+                res.set_content(json{
+                    {"message", action == "approve" ? "HPC request approved" :
+                        action == "reject" ? "HPC request rejected" : "HPC request marked completed"},
+                    {"request", *request}
+                }.dump(), "application/json");
+            } catch (const std::exception& error) {
+                sendApiError(res, 500, std::string("Unable to update HPC request: ") + error.what());
+            }
+        });
+
+    // Student LPC inventory and bookings use the same inventory and booking locks
+    // for availability checks and final reservations.
+    svr.Get("/api/student/lpc/laboratories", [](const httplib::Request&, httplib::Response& res) {
+        try {
+            std::lock_guard<std::mutex> lock(laboratoryMutex);
+            const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            json result = json::array();
+            for (const auto& laboratory : laboratories) {
+                if (!laboratoryAcceptsLpcBookings(laboratory)) continue;
+                result.push_back({
+                    {"id", laboratory.id},
+                    {"name", laboratory.name},
+                    {"building", laboratory.building},
+                    {"floor", laboratory.floor},
+                    {"room_number", laboratory.room_number}
+                });
+            }
+            res.set_content(json{{"laboratories", result}}.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to read LPC laboratories: ") + error.what());
+        }
+    });
+
+    svr.Get("/api/student/lpc/computers", [](const httplib::Request& req, httplib::Response& res) {
+        const std::string laboratoryId = trim(req.get_param_value("lab_id"));
+        const std::string date = req.get_param_value("date");
+        const std::string startValue = req.get_param_value("start");
+        const std::string endValue = req.get_param_value("end");
+        if (laboratoryId.empty()) {
+            sendApiError(res, 400, "lab_id is required");
+            return;
+        }
+        int year = 0, month = 0, dayOfMonth = 0;
+        int start = 0, end = 0;
+        if (!parseDate(date, year, month, dayOfMonth)) {
+            sendApiError(res, 400, "date must be a valid YYYY-MM-DD date");
+            return;
+        }
+        if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) {
+            sendApiError(res, 400, "start and end must be valid 24-hour times, with end after start");
+            return;
+        }
+
+        try {
+            std::unique_lock<std::mutex> inventoryLock(laboratoryMutex, std::defer_lock);
+            std::unique_lock<std::mutex> bookingLock(lpcBookingMutex, std::defer_lock);
+            std::lock(inventoryLock, bookingLock);
+            const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            const auto laboratory = std::find_if(laboratories.begin(), laboratories.end(),
+                [&](const Laboratory& item) { return item.id == laboratoryId; });
+            if (laboratory == laboratories.end() || !laboratoryAcceptsLpcBookings(*laboratory)) {
+                sendApiError(res, 404, "Operational LPC laboratory not found");
+                return;
+            }
+
+            const auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+            const auto bookings = loadJsonArrayStrict(bookingsFile);
+            json available = json::array();
+            for (const auto& computer : computers) {
+                if (computer.lab_id != laboratoryId || !equalsIgnoreCase(computer.status, "available")) continue;
+                const bool hasConflict = std::any_of(bookings.begin(), bookings.end(),
+                    [&](const json& booking) {
+                        return bookingBlocksComputer(booking, computer.id, date, start, end);
+                    });
+                if (hasConflict) continue;
+                available.push_back({
+                    {"id", computer.id},
+                    {"computer_number", computer.computer_number},
+                    {"specifications", computer.specifications}
+                });
+            }
+            res.set_content(json{{"computers", available}}.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to check LPC computer availability: ") + error.what());
+        }
+    });
+
+    svr.Post("/api/student/lpc/bookings", [](const httplib::Request& req, httplib::Response& res) {
+        json body;
+        try {
+            body = json::parse(req.body);
+        } catch (const json::exception&) {
+            sendApiError(res, 400, "Invalid JSON");
+            return;
+        }
+        if (!body.is_object()) {
+            sendApiError(res, 400, "Request body must be a JSON object");
+            return;
+        }
+        for (const auto& field : {"student_name", "lab_id", "computer_id", "date", "start", "end", "purpose"}) {
+            if (!body.contains(field) || !body[field].is_string() ||
+                trim(body[field].get<std::string>()).empty()) {
+                sendApiError(res, 400, std::string(field) + " is required");
+                return;
+            }
+        }
+
+        const std::string studentName = trim(body["student_name"].get<std::string>());
+        const std::string laboratoryId = trim(body["lab_id"].get<std::string>());
+        const std::string computerId = trim(body["computer_id"].get<std::string>());
+        const std::string date = trim(body["date"].get<std::string>());
+        const std::string startValue = trim(body["start"].get<std::string>());
+        const std::string endValue = trim(body["end"].get<std::string>());
+        const std::string purpose = trim(body["purpose"].get<std::string>());
+        if (studentName.size() > 120 || purpose.size() > 500) {
+            sendApiError(res, 400, "Student name or purpose exceeds the maximum length");
+            return;
+        }
+
+        int year = 0, month = 0, dayOfMonth = 0;
+        int start = 0, end = 0;
+        if (!parseDate(date, year, month, dayOfMonth)) {
+            sendApiError(res, 400, "date must be a valid YYYY-MM-DD date");
+            return;
+        }
+        if (!parseTime(startValue, start) || !parseTime(endValue, end) || start >= end) {
+            sendApiError(res, 400, "start and end must be valid 24-hour times, with end after start");
+            return;
+        }
+
+        try {
+            std::unique_lock<std::mutex> inventoryLock(laboratoryMutex, std::defer_lock);
+            std::unique_lock<std::mutex> bookingLock(lpcBookingMutex, std::defer_lock);
+            std::lock(inventoryLock, bookingLock);
+            const auto laboratories = loadJsonArrayStrict(laboratoriesFile).get<std::vector<Laboratory>>();
+            const auto laboratory = std::find_if(laboratories.begin(), laboratories.end(),
+                [&](const Laboratory& item) { return item.id == laboratoryId; });
+            if (laboratory == laboratories.end() || !laboratoryAcceptsLpcBookings(*laboratory)) {
+                sendApiError(res, 409, "This LPC laboratory is no longer operational");
+                return;
+            }
+
+            const auto computers = loadJsonArrayStrict(computersFile).get<std::vector<Computer>>();
+            const auto computer = std::find_if(computers.begin(), computers.end(),
+                [&](const Computer& item) {
+                    return item.id == computerId && item.lab_id == laboratoryId;
+                });
+            if (computer == computers.end()) {
+                sendApiError(res, 404, "Computer does not belong to this laboratory");
+                return;
+            }
+            if (!equalsIgnoreCase(computer->status, "available")) {
+                sendApiError(res, 409, "This computer is under maintenance or otherwise unavailable");
+                return;
+            }
+
+            auto bookings = loadJsonArrayStrict(bookingsFile);
+            const bool conflict = std::any_of(bookings.begin(), bookings.end(),
+                [&](const json& booking) {
+                    return bookingBlocksComputer(booking, computerId, date, start, end);
+                });
+            if (conflict) {
+                sendApiError(res, 409, "This computer has already been booked for an overlapping time");
+                return;
+            }
+
+            std::string bookingId;
+            do {
+                bookingId = Storage::generateId("lpc-booking-");
+            } while (std::any_of(bookings.begin(), bookings.end(), [&](const json& existing) {
+                return existing.is_object() && existing.value("id", "") == bookingId;
+            }));
+            json booking = {
+                {"id", bookingId},
+                {"type", "LPC"},
+                {"lab_id", laboratoryId},
+                {"computer_id", computerId},
+                {"user_id", studentName},
+                {"student_name", studentName},
+                {"date", date},
+                {"start", startValue},
+                {"end", endValue},
+                {"status", "confirmed"},
+                {"purpose", purpose}
+            };
+            bookings.push_back(booking);
+            if (!Storage::save<json>(bookingsFile, bookings.get<std::vector<json>>())) {
+                sendApiError(res, 500, "Unable to save booking");
+                return;
+            }
+            res.status = 201;
+            res.set_content(json{
+                {"message", "Booking confirmed"},
+                {"booking", booking},
+                {"laboratory", laboratory->name},
+                {"computer_number", computer->computer_number}
+            }.dump(), "application/json");
+        } catch (const std::exception& error) {
+            sendApiError(res, 500, std::string("Unable to create LPC booking: ") + error.what());
+        }
+    });
 
     // Public classroom search; availability is calculated from current server-side records.
     svr.Get("/api/student/classrooms", [](const httplib::Request& req, httplib::Response& res) {

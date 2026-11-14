@@ -77,11 +77,20 @@ struct Booking {
     std::string lab_id;
     std::string computer_id; // optional for HPC request until approved
     std::string user_id;
+    std::string student_name; // optional student name or ID for direct LPC bookings
     std::string date; // YYYY-MM-DD
     std::string start; // HH:MM
     std::string end;   // HH:MM
-    std::string status; // "confirmed", "pending", "approved", "rejected"
+    std::string status; // confirmed, pending, approved, rejected, cancelled, completed
     std::string purpose; // optional for HPC
+    std::string created_at;
+    std::string approved_by;
+    std::string approval_timestamp;
+    std::string rejection_reason;
+    std::string reviewed_by;
+    std::string reviewed_at;
+    std::string completed_at;
+    std::string cancelled_at;
 };
 
 // JSON (de)serialization – defined inline for header‑only convenience
@@ -204,6 +213,15 @@ namespace nlohmann {
     template <> struct adl_serializer<Booking> {
         static void to_json(json& j, const Booking& b) {
             j = json{{"id", b.id}, {"type", b.type}, {"lab_id", b.lab_id}, {"computer_id", b.computer_id}, {"user_id", b.user_id}, {"date", b.date}, {"start", b.start}, {"end", b.end}, {"status", b.status}, {"purpose", b.purpose}};
+            if (!b.student_name.empty()) j["student_name"] = b.student_name;
+            if (!b.created_at.empty()) j["created_at"] = b.created_at;
+            if (!b.approved_by.empty()) j["approved_by"] = b.approved_by;
+            if (!b.approval_timestamp.empty()) j["approval_timestamp"] = b.approval_timestamp;
+            if (!b.rejection_reason.empty()) j["rejection_reason"] = b.rejection_reason;
+            if (!b.reviewed_by.empty()) j["reviewed_by"] = b.reviewed_by;
+            if (!b.reviewed_at.empty()) j["reviewed_at"] = b.reviewed_at;
+            if (!b.completed_at.empty()) j["completed_at"] = b.completed_at;
+            if (!b.cancelled_at.empty()) j["cancelled_at"] = b.cancelled_at;
         }
         static void from_json(const json& j, Booking& b) {
             j.at("id").get_to(b.id);
@@ -211,11 +229,20 @@ namespace nlohmann {
             j.at("lab_id").get_to(b.lab_id);
             j.at("computer_id").get_to(b.computer_id);
             j.at("user_id").get_to(b.user_id);
+            if (j.contains("student_name")) j.at("student_name").get_to(b.student_name);
             j.at("date").get_to(b.date);
             j.at("start").get_to(b.start);
             j.at("end").get_to(b.end);
             j.at("status").get_to(b.status);
             j.at("purpose").get_to(b.purpose);
+            if (j.contains("created_at")) j.at("created_at").get_to(b.created_at);
+            if (j.contains("approved_by")) j.at("approved_by").get_to(b.approved_by);
+            if (j.contains("approval_timestamp")) j.at("approval_timestamp").get_to(b.approval_timestamp);
+            if (j.contains("rejection_reason")) j.at("rejection_reason").get_to(b.rejection_reason);
+            if (j.contains("reviewed_by")) j.at("reviewed_by").get_to(b.reviewed_by);
+            if (j.contains("reviewed_at")) j.at("reviewed_at").get_to(b.reviewed_at);
+            if (j.contains("completed_at")) j.at("completed_at").get_to(b.completed_at);
+            if (j.contains("cancelled_at")) j.at("cancelled_at").get_to(b.cancelled_at);
         }
     };
 }

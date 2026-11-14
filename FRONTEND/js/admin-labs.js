@@ -1,10 +1,12 @@
 const LABORATORIES_API = '/api/laboratories';
 const COMPUTERS_API = '/api/computers';
+const HPC_REQUESTS_API = '/api/admin/hpc-requests';
 
 let laboratories = [];
 let computers = [];
 let editingLaboratoryId = null;
 let editingComputerId = null;
+let reviewedHpcRequest = null;
 
 async function labApiRequest(url, options = {}) {
   const token = sessionStorage.getItem('authToken');
@@ -325,14 +327,204 @@ async function deleteComputer(computer) {
   }
 }
 
+function setHpcRequestMessage(message, isError = false) {
+  const element = document.getElementById('hpc-request-message');
+  element.textContent = message;
+  element.classList.toggle('error', isError);
+}
+
+function setHpcAvailabilityMessage(message, isError = false) {
+  const element = document.getElementById('hpc-availability-message');
+  element.textContent = message;
+  element.classList.toggle('error', isError);
+}
+
+function renderHpcRequests(requests) {
+  const root = document.getElementById('hpc-request-list');
+  root.replaceChildren();
+  if (!requests.length) {
+    root.textContent = 'No HPC booking requests have been submitted.';
+    return;
+  }
+
+  const labNames = new Map(laboratories.map(laboratory => [laboratory.id, laboratory.name]));
+  const table = document.createElement('table');
+  table.className = 'table timetable-table';
+  const header = document.createElement('tr');
+  ['Student', 'Laboratory', 'Date', 'Time', 'Status', 'Actions'].forEach(label => {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = label;
+    header.appendChild(cell);
+  });
+  const head = document.createElement('thead');
+  head.appendChild(header);
+  table.appendChild(head);
+
+  const body = document.createElement('tbody');
+  requests.forEach(request => {
+    const row = document.createElement('tr');
+    addTableCell(row, request.student_name || request.user_id);
+    addTableCell(row, labNames.get(request.lab_id) || request.lab_id);
+    addTableCell(row, request.date);
+    addTableCell(row, `${request.start}–${request.end}`);
+    addTableCell(row, request.status);
+    const actions = addTableCell(row, '');
+    actions.appendChild(makeActionButton(
+      request.status === 'pending' ? 'Review' : 'View details',
+      () => openHpcRequest(request.id),
+      request.status === 'pending' ? 'btn-primary' : 'btn-secondary'
+    ));
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  root.appendChild(table);
+}
+
+async function loadHpcRequests(successMessage = '') {
+  try {
+    const data = await labApiRequest(HPC_REQUESTS_API);
+    renderHpcRequests(data.requests || []);
+    setHpcRequestMessage(successMessage || `${(data.requests || []).length} HPC request(s) loaded.`);
+  } catch (error) {
+    setHpcRequestMessage(error.message, true);
+    document.getElementById('hpc-request-list').replaceChildren();
+  }
+}
+
+function addHpcDetail(label, value) {
+  const details = document.getElementById('hpc-request-details');
+  const term = document.createElement('dt');
+  term.textContent = label;
+  const description = document.createElement('dd');
+  description.textContent = value || '—';
+  details.append(term, description);
+}
+
+async function openHpcRequest(requestId) {
+  const panel = document.getElementById('hpc-review-panel');
+  const computerSection = document.getElementById('hpc-computer-selection');
+  const rejectionSection = document.getElementById('hpc-rejection-field');
+  const computerSelect = document.getElementById('hpc-computer');
+  const approveButton = document.getElementById('hpc-approve');
+  const rejectButton = document.getElementById('hpc-reject');
+  const completeButton = document.getElementById('hpc-complete');
+  reviewedHpcRequest = null;
+  approveButton.disabled = true;
+  rejectButton.disabled = true;
+  completeButton.hidden = true;
+  computerSelect.replaceChildren(new Option('Checking available computers…', ''));
+  setHpcAvailabilityMessage('Loading request details…');
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    const request = await labApiRequest(`${HPC_REQUESTS_API}/${encodeURIComponent(requestId)}`);
+    reviewedHpcRequest = request;
+    const lab = laboratories.find(item => item.id === request.lab_id);
+    document.getElementById('hpc-request-details').replaceChildren();
+    addHpcDetail('Request ID', request.id);
+    addHpcDetail('Student', request.student_name || request.user_id);
+    addHpcDetail('Laboratory', lab ? `${lab.name} (${lab.id})` : request.lab_id);
+    addHpcDetail('Date', request.date);
+    addHpcDetail('Time', `${request.start}–${request.end}`);
+    addHpcDetail('Purpose', request.purpose);
+    addHpcDetail('Status', request.status);
+    if (request.computer_id) addHpcDetail('Assigned computer', request.computer_id);
+    if (request.approved_by) addHpcDetail('Approved by', request.approved_by);
+    if (request.approval_timestamp) addHpcDetail('Approved at', request.approval_timestamp);
+    if (request.rejection_reason) addHpcDetail('Rejection reason', request.rejection_reason);
+
+    const pending = request.status === 'pending';
+    computerSection.hidden = !pending;
+    rejectionSection.hidden = !pending;
+    document.getElementById('hpc-rejection-reason').value = '';
+    completeButton.hidden = request.status !== 'approved';
+    completeButton.disabled = request.status !== 'approved';
+    if (!pending) {
+      computerSelect.replaceChildren(new Option('No assignment needed', ''));
+      setHpcAvailabilityMessage(
+        request.status === 'approved' ? 'This approved booking can be marked completed.' : `Request status: ${request.status}.`
+      );
+      return;
+    }
+
+    const availability = await labApiRequest(
+      `${HPC_REQUESTS_API}/${encodeURIComponent(requestId)}/availability`
+    );
+    computerSelect.replaceChildren(new Option(
+      availability.computers.length ? 'Select an available computer' : 'No computers available for this period',
+      ''
+    ));
+    availability.computers.forEach(computer => {
+      computerSelect.add(new Option(`PC ${computer.computer_number} — ${computer.specifications}`, computer.id));
+    });
+    computerSelect.disabled = availability.computers.length === 0;
+    rejectButton.disabled = false;
+    setHpcAvailabilityMessage(
+      availability.computers.length
+        ? `${availability.computers.length} available computer(s). Availability will be checked again when approving.`
+        : 'No operational computers are available for this period.'
+    );
+  } catch (error) {
+    computerSelect.replaceChildren(new Option('Unable to check request', ''));
+    setHpcAvailabilityMessage(error.message, true);
+  }
+}
+
+async function updateHpcRequest(action) {
+  if (!reviewedHpcRequest) return;
+  const payload = { action };
+  if (action === 'approve') {
+    payload.computer_id = document.getElementById('hpc-computer').value;
+    if (!payload.computer_id) {
+      setHpcAvailabilityMessage('Select an available computer before approving.', true);
+      return;
+    }
+  }
+  if (action === 'reject') {
+    payload.rejection_reason = document.getElementById('hpc-rejection-reason').value.trim();
+  }
+
+  document.getElementById('hpc-approve').disabled = true;
+  document.getElementById('hpc-reject').disabled = true;
+  document.getElementById('hpc-complete').disabled = true;
+  try {
+    const result = await labApiRequest(
+      `${HPC_REQUESTS_API}/${encodeURIComponent(reviewedHpcRequest.id)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    );
+    reviewedHpcRequest = result.request;
+    document.getElementById('hpc-review-panel').hidden = true;
+    await loadHpcRequests(result.message);
+  } catch (error) {
+    const requestId = reviewedHpcRequest.id;
+    await loadHpcRequests();
+    await openHpcRequest(requestId);
+    setHpcAvailabilityMessage(error.message, true);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   if (!sessionStorage.getItem('authToken')) {
     window.location.href = 'login.html?returnTo=admin-labs.html';
     return;
   }
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
   document.getElementById('lab-form').addEventListener('submit', saveLaboratory);
   document.getElementById('cancel-lab-edit').addEventListener('click', resetLaboratoryForm);
   document.getElementById('computer-form').addEventListener('submit', saveComputer);
   document.getElementById('cancel-computer-edit').addEventListener('click', resetComputerForm);
-  await loadInventory();
+  document.getElementById('hpc-approve').addEventListener('click', () => updateHpcRequest('approve'));
+  document.getElementById('hpc-reject').addEventListener('click', () => updateHpcRequest('reject'));
+  document.getElementById('hpc-complete').addEventListener('click', () => updateHpcRequest('complete'));
+  document.getElementById('hpc-review-close').addEventListener('click', () => {
+    document.getElementById('hpc-review-panel').hidden = true;
+  });
+  document.getElementById('hpc-computer').addEventListener('change', event => {
+    document.getElementById('hpc-approve').disabled = !event.target.value;
+  });
+  await Promise.all([loadInventory(), loadHpcRequests()]);
 });
