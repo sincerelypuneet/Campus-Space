@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CampusSpace – Welcome</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>CampusSpace</h1>
+    <p class="tagline">Smart Campus Resource Management &amp; Booking System</p>
+  </header>
+
+  <main class="container">
+    <section class="welcome">
+      <h2>Welcome</h2>
+      <p>Select the interface you need to continue.</p>
+    </section>
+    <section class="options">
+      <div class="card" onclick="location.href='admin-login.html'">
+        <div class="icon">&#9881;</div>
+        <h3>Admin / Teacher</h3>
+        <p>Manage resources, approve bookings, view reports.</p>
+      </div>
+      <div class="card" onclick="location.href='student-login.html'">
+        <div class="icon">&#127979;</div>
+        <h3>Student</h3>
+        <p>Browse available resources and create bookings.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>&copy; 2026 CampusSpace. All rights reserved.</small>
+  </footer>
+</body>
+</html>
